@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 LANGS = ("uz", "ru")
+ADMIN_PANEL_BUTTON = "🛠 Admin panel"
 
 TEXTS: dict[str, dict[str, str]] = {
     "uz": {
@@ -28,6 +29,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_open_menu": "🍔 Menyuni ochish",
         "menu_button": "Menyu",
         "closed_now": "😴 Hozir yopiqmiz. Ish vaqti: <b>{open}–{close}</b>.\nMenyuni ko'rishingiz mumkin, buyurtmalar ish vaqtida qabul qilinadi.",
+        "paused_now": "⏸ Hozir buyurtmalar vaqtincha qabul qilinmayapti. Menyuni ko'rishingiz mumkin.",
         "no_orders": "Sizda hali buyurtmalar yo'q. Birinchisini hoziroq bering! 🍔",
         "my_orders_title": "📦 <b>Oxirgi buyurtmalaringiz</b>",
         "about": "🍔 <b>{store}</b>\n\n{about}\n\n🕒 Ish vaqti: <b>{open}–{close}</b>\n📍 Manzil: {address}",
@@ -95,6 +97,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_open_menu": "🍔 Открыть меню",
         "menu_button": "Меню",
         "closed_now": "😴 Сейчас мы закрыты. Время работы: <b>{open}–{close}</b>.\nМеню можно посмотреть, заказы принимаем в рабочее время.",
+        "paused_now": "⏸ Сейчас заказы временно не принимаются. Меню можно посмотреть.",
         "no_orders": "У вас пока нет заказов. Сделайте первый прямо сейчас! 🍔",
         "my_orders_title": "📦 <b>Ваши последние заказы</b>",
         "about": "🍔 <b>{store}</b>\n\n{about}\n\n🕒 Время работы: <b>{open}–{close}</b>\n📍 Адрес: {address}",
@@ -177,18 +180,31 @@ ADMIN_TEXTS: dict[str, dict[str, str]] = {
         ),
         "active_none": "Faol buyurtmalar yo'q 👌",
         "active_title": "📋 <b>Faol buyurtmalar</b>",
-        "reloaded": "✅ Menyu va sozlamalar qayta yuklandi: {cats} ta kategoriya, {products} ta mahsulot.",
-        "reload_error": "❌ Faylda xato: {error}",
+        "panel_text": (
+            "🛠 <b>Admin panel</b>\n\n"
+            "Menyu, rasmlar, narxlar, aksiyalar, buyurtmalar, statistika va sozlamalar.\n\n"
+            "📱 Telefonda — «Panelni ochish».\n"
+            "💻 Kompyuterda — «Kompyuterda ochish» (havola 10 daqiqa amal qiladi va bir marta ishlaydi)."
+        ),
+        "panel_open": "🛠 Panelni ochish",
+        "panel_desktop": "💻 Kompyuterda ochish",
+        "panel_private_only": "Admin panel botning shaxsiy chatida ochiladi 👇",
+        "panel_no_access": (
+            "Sizda admin panelga ruxsat yo'q.\n\nSizning Telegram ID: <code>{user_id}</code>\n"
+            "Egasi sizni panel → Sozlamalar → Adminlar bo'limida qo'shishi mumkin."
+        ),
+        "panel_no_https": "⚠️ PUBLIC_URL (https) sozlanmagan — panel ochilmaydi.",
+        "broadcast_running": "📣 Hozir boshqa xabar yuborilmoqda, tugashini kuting.",
         "broadcast_help": "Reklama yuborish: kerakli xabarga (matn/rasm/video) <b>javob (reply)</b> qilib /broadcast yozing.",
         "broadcast_start": "📣 {count} ta foydalanuvchiga yuborilmoqda...",
         "broadcast_done": "📣 Tugadi: {ok} ta yuborildi, {fail} ta yetib bormadi (botni bloklagan).",
         "chat_id": "Bu chat ID: <code>{chat_id}</code>\nSizning ID: <code>{user_id}</code>",
         "admin_help": (
             "🛠 <b>Admin buyruqlari</b>\n\n"
+            "/panel — admin panel (menyu, aksiyalar, sozlamalar)\n"
             "/active — faol buyurtmalar\n"
             "/stats — statistika\n"
             "/stoplist — mahsulotni vaqtincha o'chirish/yoqish\n"
-            "/reload — menu.json va store.json ni qayta o'qish\n"
             "/broadcast — reklama yuborish (xabarga reply qilib)\n"
             "/id — chat ID ni bilish"
         ),
@@ -229,18 +245,31 @@ ADMIN_TEXTS: dict[str, dict[str, str]] = {
         ),
         "active_none": "Активных заказов нет 👌",
         "active_title": "📋 <b>Активные заказы</b>",
-        "reloaded": "✅ Меню и настройки перезагружены: {cats} категорий, {products} товаров.",
-        "reload_error": "❌ Ошибка в файле: {error}",
+        "panel_text": (
+            "🛠 <b>Админ-панель</b>\n\n"
+            "Меню, фото, цены, акции, заказы, статистика и настройки.\n\n"
+            "📱 С телефона — «Открыть панель».\n"
+            "💻 С компьютера — «Открыть на компьютере» (ссылка действует 10 минут и один раз)."
+        ),
+        "panel_open": "🛠 Открыть панель",
+        "panel_desktop": "💻 Открыть на компьютере",
+        "panel_private_only": "Админ-панель открывается в личном чате с ботом 👇",
+        "panel_no_access": (
+            "У вас нет доступа к админ-панели.\n\nВаш Telegram ID: <code>{user_id}</code>\n"
+            "Владелец может добавить вас: панель → Настройки → Админы."
+        ),
+        "panel_no_https": "⚠️ PUBLIC_URL (https) не настроен — панель не откроется.",
+        "broadcast_running": "📣 Сейчас идёт другая рассылка, дождитесь окончания.",
         "broadcast_help": "Рассылка: ответьте (reply) на нужное сообщение (текст/фото/видео) командой /broadcast.",
         "broadcast_start": "📣 Отправляю {count} пользователям...",
         "broadcast_done": "📣 Готово: отправлено {ok}, не доставлено {fail} (заблокировали бота).",
         "chat_id": "ID этого чата: <code>{chat_id}</code>\nВаш ID: <code>{user_id}</code>",
         "admin_help": (
             "🛠 <b>Команды админа</b>\n\n"
+            "/panel — админ-панель (меню, акции, настройки)\n"
             "/active — активные заказы\n"
             "/stats — статистика\n"
             "/stoplist — временно выключить/включить товар\n"
-            "/reload — перечитать menu.json и store.json\n"
             "/broadcast — рассылка (ответом на сообщение)\n"
             "/id — узнать ID чата"
         ),

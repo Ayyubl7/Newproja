@@ -1,5 +1,5 @@
 {
-  "_izoh": "NAMUNA MENYU. Nomlar, narxlar va rasmlarni o'zingiznikiga almashtiring. Narxlar so'mda. image bo'sh bo'lsa, kategoriya rasmi ko'rsatiladi. badge: hit | new | spicy yoki bo'sh.",
+  "_izoh": "NAMUNA MENYU — faqat birinchi ishga tushishda bazaga yuklanadi. Keyin menyu, narx va rasmlar admin paneldan (botda /panel) boshqariladi; bu fayl qayta o'qilmaydi.",
   "categories": [
     { "id": "combo",   "icon": "combo",  "name": { "uz": "Kombo",       "ru": "Комбо" } },
     { "id": "burgers", "icon": "burger", "name": { "uz": "Burgerlar",   "ru": "Бургеры" } },

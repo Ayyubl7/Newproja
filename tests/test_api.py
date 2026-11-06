@@ -17,6 +17,7 @@ from bot.config import DATA_DIR, Settings
 from bot.context import AppContext
 from bot.db import Database
 from bot.orders import TRANSITIONS, admin_keyboard, admin_text, can_transition, user_order_created_text
+from bot.seed import ensure_seeded
 from bot.web import build_web_app
 
 TOKEN = "123456:TEST-token_for_tests"
@@ -62,9 +63,12 @@ async def _client(tmp: Path, announced: list, **over):
     settings = make_settings(tmp, **over)
     db = Database(settings.db_path)
     await db.connect()
-    catalog = Catalog.load(DATA_DIR)
-    catalog.store["hours"] = {"open": "00:00", "close": "00:00"}  # 24/7 — test vaqtiga bog'liq bo'lmasin
-    ctx = AppContext(settings=settings, bot=Bot(TOKEN), db=db, catalog=catalog)
+    await ensure_seeded(db, DATA_DIR)
+    store = await db.get_setting("store")
+    store["hours"] = {"open": "00:00", "close": "00:00"}  # 24/7 — test vaqtiga bog'liq bo'lmasin
+    await db.set_setting("store", store)
+    ctx = AppContext(settings=settings, bot=Bot(TOKEN), db=db, catalog=await Catalog.from_db(db))
+    await ctx.reload_admins()
 
     async def fake_announce(_ctx, order_id):
         announced.append(order_id)
@@ -217,7 +221,7 @@ def test_status_transitions(tmp_path):
 
 def test_admin_keyboard_per_status(tmp_path):
     settings = make_settings(tmp_path)
-    ctx = AppContext(settings=settings, bot=None, db=None, catalog=Catalog.load(DATA_DIR))  # type: ignore[arg-type]
+    ctx = AppContext(settings=settings, bot=None, db=None, catalog=Catalog({}, [], {}))  # type: ignore[arg-type]
     order = {"id": 5, "type": "delivery", "status": "new"}
     kb = admin_keyboard(ctx, order)
     assert [b.callback_data for b in kb.inline_keyboard[0]] == ["o:5:accepted", "o:5:ask_cancel"]

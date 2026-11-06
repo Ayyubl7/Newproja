@@ -205,6 +205,35 @@ img { display: block; max-width: 100%; }
 .card__desc { margin-top: 3px; color: var(--muted); font-size: 12px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .card__foot { margin-top: auto; padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 .price { font-weight: 800; font-size: 15px; white-space: nowrap; }
+.price--sale { color: #D63A2F; }
+:root[data-theme="dark"] .price--sale { color: #FF7A6B; }
+.price-old { color: var(--muted); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.card__price { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; }
+.row__price s { margin-left: 4px; }
+.badge--sale { left: auto; right: 8px; background: #D63A2F; color: #fff; }
+.sheet__price { margin: -2px 0 10px; display: flex; align-items: baseline; gap: 8px; }
+.sheet__price .price { font-size: 18px; }
+
+/* ============ Aksiya bannerlari ============ */
+.carousel { position: relative; margin: 8px 0 0; }
+.carousel__track { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 0 16px; scroll-padding: 0 16px; }
+.carousel__track::-webkit-scrollbar { display: none; }
+.slide {
+  position: relative; flex: 0 0 100%; scroll-snap-align: start; overflow: hidden;
+  aspect-ratio: 2 / 1; min-height: 150px; border-radius: 24px; cursor: pointer; background: var(--surface-2);
+}
+.carousel__track > .slide:only-child { flex-basis: 100%; }
+.slide__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.slide__shade { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 16px 14px; color: #fff; background: linear-gradient(to top, rgba(20, 10, 0, .78), transparent); }
+.slide--plain { background: radial-gradient(120% 140% at 100% 0%, #FFD86B 0%, transparent 55%), linear-gradient(135deg, #F9B928 0%, #F29A12 100%); color: #261703; }
+.slide__plain { position: relative; z-index: 1; padding: 18px; max-width: 64%; }
+.slide__kicker { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+.slide__title { font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1.15; margin-top: 4px; }
+.slide__text { font-size: 13px; opacity: .9; margin-top: 4px; }
+.slide__deco { position: absolute; right: -6px; bottom: -8px; width: 46%; max-width: 170px; transform: rotate(-8deg); filter: drop-shadow(0 10px 14px rgba(80, 40, 0, .28)); }
+.dots { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
+.dots span { width: 6px; height: 6px; border-radius: 3px; background: var(--line); transition: width .25s, background .25s; }
+.dots span.is-active { width: 18px; background: var(--accent); }
 .card.is-out .card__media img { filter: grayscale(1); opacity: .45; }
 .card.is-out .price { color: var(--muted); }
 .out-label { font-size: 12px; font-weight: 700; color: var(--muted); }

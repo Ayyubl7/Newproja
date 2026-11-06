@@ -62,6 +62,7 @@ async def api_bootstrap(request: web.Request) -> web.Response:
         "ok": True,
         "store": ctx.catalog.public_store(),
         "menu": ctx.catalog.public_menu(),
+        "banners": ctx.catalog.public_banners(),
         "profile": {
             "lang": norm_lang(lang),
             "name": profile.get("first_name") or user.first_name or "",
@@ -113,6 +114,8 @@ async def api_order(request: web.Request) -> web.Response:
     comment = _clean_str(body.get("comment"), 300)
     lat, lon = _coord(body.get("lat"), 90), _coord(body.get("lon"), 180)
 
+    if not ctx.catalog.store.get("accepting", True):
+        raise ApiError(409, "paused")
     if not ctx.catalog.is_open():
         raise ApiError(409, "closed")
     if payment not in PAYMENT_METHODS or not ctx.catalog.store.get("payments", {}).get(payment):
@@ -187,8 +190,12 @@ async def api_errors(request: web.Request, handler):
 @web.middleware
 async def cache_headers(request: web.Request, handler):
     resp = await handler(request)
-    if request.path.startswith("/static/") and isinstance(resp, web.StreamResponse):
-        resp.headers.setdefault("Cache-Control", "public, max-age=3600")
+    if isinstance(resp, web.StreamResponse):
+        if request.path.startswith("/static/"):
+            resp.headers.setdefault("Cache-Control", "public, max-age=3600")
+        elif request.path.startswith("/media/"):
+            # Yuklangan rasm nomlari tasodifiy va o'zgarmaydi — uzoq keshlash mumkin
+            resp.headers.setdefault("Cache-Control", "public, max-age=2592000, immutable")
     return resp
 
 
@@ -200,4 +207,9 @@ def build_web_app(ctx: AppContext) -> web.Application:
     app.router.add_get("/api/bootstrap", api_bootstrap)
     app.router.add_post("/api/order", api_order)
     app.router.add_static("/static/", WEBAPP_DIR, show_index=False)
+    ctx.settings.upload_dir.mkdir(parents=True, exist_ok=True)
+    app.router.add_static("/media/", ctx.settings.upload_dir, show_index=False)
+
+    from .admin_api import setup_admin_routes  # admin_api web.py'dan import qiladi — aylanma importdan qochish
+    setup_admin_routes(app)
     return app

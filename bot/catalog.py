@@ -1,10 +1,9 @@
-"""Menyu va do'kon sozlamalari: yuklash, narxni hisoblash, ish vaqti."""
+"""Menyu va do'kon sozlamalari (bazadan xotiraga yuklanadi): narx, aksiya, ish vaqti."""
 from __future__ import annotations
 
-import json
+import copy
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta, timezone
-from pathlib import Path
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 # O'zbekistonda yozgi vaqt yo'q — doim UTC+5.
@@ -14,6 +13,26 @@ MAX_QTY_PER_ITEM = 50
 MAX_LINES = 40
 ORDER_TYPES = ("delivery", "pickup")
 PAYMENT_METHODS = ("cash", "click", "payme")
+# Hozircha faqat naqd. Click/Payme ulanmaguncha yoqib bo'lmaydi.
+LIVE_PAYMENT_METHODS = ("cash",)
+BADGES = ("", "hit", "new", "spicy")
+ICONS = ("burger", "combo", "hotdog", "fries", "sauce", "drink", "wrap", "chicken", "dessert")
+
+DEFAULT_STORE: dict[str, Any] = {
+    "name": "Ayva Burgers",
+    "tagline": {"uz": "", "ru": ""},
+    "about": {"uz": "", "ru": ""},
+    "phone": "",
+    "support_username": "",
+    "instagram": "",
+    "address": {"uz": "", "ru": ""},
+    "location": None,
+    "hours": {"open": "10:00", "close": "02:00"},
+    "accepting": True,
+    "delivery": {"enabled": True, "fee": 0, "free_from": 0, "min_order": 0, "eta": ""},
+    "pickup": {"enabled": True, "min_order": 0, "eta": ""},
+    "payments": {"cash": True, "click": False, "payme": False},
+}
 
 
 class OrderError(Exception):
@@ -53,9 +72,75 @@ def fmt_money(amount: int, lang: str = "uz") -> str:
     return f"{amount:,}".replace(",", " ") + f" {cur}"
 
 
+def today_local() -> date:
+    return datetime.now(TASHKENT_TZ).date()
+
+
 def _parse_hhmm(value: str) -> time:
     h, m = value.split(":")
     return time(int(h), int(m))
+
+
+def _merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    out = copy.deepcopy(base)
+    for k, v in (extra or {}).items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = _merge(out[k], v)
+        else:
+            out[k] = v
+    return out
+
+
+def normalize_store(raw: dict[str, Any] | None) -> dict[str, Any]:
+    store = _merge(DEFAULT_STORE, raw or {})
+    for m in PAYMENT_METHODS:
+        if m not in LIVE_PAYMENT_METHODS:
+            store["payments"][m] = False
+    return store
+
+
+def _i18n(uz: str, ru: str) -> dict[str, str]:
+    return {"uz": uz or "", "ru": ru or uz or ""}
+
+
+def category_from_row(r: dict[str, Any]) -> dict[str, Any]:
+    return {"id": r["id"], "name": _i18n(r["name_uz"], r["name_ru"]), "icon": r["icon"] or "burger",
+            "visible": bool(r["visible"]), "sort": r["sort"]}
+
+
+def product_from_row(r: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": r["id"], "category": r["category_id"],
+        "name": _i18n(r["name_uz"], r["name_ru"]),
+        "description": _i18n(r["desc_uz"], r["desc_ru"]),
+        "price": int(r["price"]), "promo_price": r["promo_price"],
+        "promo_from": r["promo_from"], "promo_to": r["promo_to"],
+        "image": r["image"] or "", "badge": r["badge"] or "",
+        "available": bool(r["available"]), "visible": bool(r["visible"]), "sort": r["sort"],
+    }
+
+
+def promo_active(p: dict[str, Any], today: date | None = None) -> bool:
+    pp = p.get("promo_price")
+    if not pp or pp >= p["price"]:
+        return False
+    today = today or today_local()
+    if p.get("promo_from") and today < date.fromisoformat(p["promo_from"]):
+        return False
+    if p.get("promo_to") and today > date.fromisoformat(p["promo_to"]):
+        return False
+    return True
+
+
+def banner_active(b: dict[str, Any], today: date | None = None) -> bool:
+    if not b.get("active"):
+        return False
+    today = today or today_local()
+    if b.get("date_from") and today < date.fromisoformat(b["date_from"]):
+        return False
+    if b.get("date_to") and today > date.fromisoformat(b["date_to"]):
+        return False
+    return True
 
 
 @dataclass
@@ -63,28 +148,22 @@ class Catalog:
     store: dict[str, Any]
     categories: list[dict[str, Any]]
     products: dict[str, dict[str, Any]]
-    stoplist: set[str] = field(default_factory=set)
+    banners: list[dict[str, Any]] = field(default_factory=list)
 
     # ---------- yuklash ----------
     @classmethod
-    def load(cls, data_dir: Path) -> "Catalog":
-        store = json.loads((data_dir / "store.json").read_text(encoding="utf-8"))
-        menu = json.loads((data_dir / "menu.json").read_text(encoding="utf-8"))
-        categories = menu["categories"]
-        cat_ids = {c["id"] for c in categories}
-        products: dict[str, dict[str, Any]] = {}
-        for p in menu["products"]:
-            if p["id"] in products:
-                raise ValueError(f"menu.json: takrorlangan mahsulot id: {p['id']}")
-            if p["category"] not in cat_ids:
-                raise ValueError(f"menu.json: {p['id']} uchun noma'lum kategoriya {p['category']}")
-            if not isinstance(p["price"], int) or p["price"] <= 0:
-                raise ValueError(f"menu.json: {p['id']} narxi musbat butun son bo'lishi kerak")
-            products[p["id"]] = p
-        return cls(store=store, categories=categories, products=products)
+    async def from_db(cls, db: Any) -> "Catalog":
+        store = await db.get_setting("store")
+        cats = [category_from_row(r) for r in await db.list_categories()]
+        prods = {r["id"]: product_from_row(r) for r in await db.list_products()}
+        return cls(store=normalize_store(store), categories=cats, products=prods,
+                   banners=await db.list_banners())
+
+    def category(self, cat_id: str) -> dict[str, Any] | None:
+        return next((c for c in self.categories if c["id"] == cat_id), None)
 
     # ---------- ish vaqti ----------
-    def is_open(self, now: datetime | None = None) -> bool:
+    def within_hours(self, now: datetime | None = None) -> bool:
         hours = self.store.get("hours") or {}
         if not hours.get("open") or not hours.get("close"):
             return True
@@ -97,39 +176,68 @@ class Catalog:
         # Yarim tundan o'tib ishlaydi (masalan 10:00–02:00)
         return cur >= start or cur < end
 
+    def is_open(self, now: datetime | None = None) -> bool:
+        """Hozir buyurtma qabul qilinadimi: admin to'xtatmagan va ish vaqti."""
+        return bool(self.store.get("accepting", True)) and self.within_hours(now)
+
     # ---------- menyu ----------
-    def is_available(self, product_id: str) -> bool:
+    def is_shown(self, product_id: str) -> bool:
         p = self.products.get(product_id)
-        return bool(p) and product_id not in self.stoplist and p.get("available", True)
+        if not p or not p["visible"]:
+            return False
+        cat = self.category(p["category"])
+        return bool(cat and cat["visible"])
+
+    def is_available(self, product_id: str) -> bool:
+        return self.is_shown(product_id) and self.products[product_id]["available"]
+
+    def price_of(self, product_id: str, today: date | None = None) -> tuple[int, int | None]:
+        """(amaldagi narx, eski narx yoki None)."""
+        p = self.products[product_id]
+        if promo_active(p, today):
+            return int(p["promo_price"]), p["price"]
+        return p["price"], None
 
     def public_menu(self) -> dict[str, Any]:
+        today = today_local()
+        cats = [{"id": c["id"], "name": c["name"], "icon": c["icon"]} for c in self.categories if c["visible"]]
         items = []
         for p in self.products.values():
+            if not self.is_shown(p["id"]):
+                continue
+            price, old = self.price_of(p["id"], today)
             items.append({
-                "id": p["id"],
-                "category": p["category"],
-                "name": p["name"],
-                "description": p.get("description") or {},
-                "price": p["price"],
-                "image": p.get("image") or "",
-                "badge": p.get("badge") or "",
-                "available": self.is_available(p["id"]),
+                "id": p["id"], "category": p["category"], "name": p["name"], "description": p["description"],
+                "price": price, "old_price": old,
+                "discount": round((old - price) * 100 / old) if old else 0,
+                "image": p["image"], "badge": p["badge"], "available": p["available"],
             })
-        return {"categories": self.categories, "products": items}
+        return {"categories": cats, "products": items}
+
+    def public_banners(self) -> list[dict[str, Any]]:
+        today = today_local()
+        out = []
+        for b in self.banners:
+            if not banner_active(b, today):
+                continue
+            link_type, link_id = b["link_type"], b["link_id"]
+            if link_type == "product" and not self.is_shown(link_id):
+                link_type = ""
+            if link_type == "category" and not (self.category(link_id) or {}).get("visible"):
+                link_type = ""
+            out.append({
+                "id": b["id"], "title": _i18n(b["title_uz"], b["title_ru"]), "text": _i18n(b["text_uz"], b["text_ru"]),
+                "image": b["image"], "link_type": link_type, "link_id": link_id if link_type else "",
+            })
+        return out
 
     def public_store(self) -> dict[str, Any]:
         s = self.store
         return {
-            "name": s.get("name", "Ayva Burgers"),
-            "tagline": s.get("tagline", {}),
-            "phone": s.get("phone", ""),
-            "address": s.get("address", {}),
-            "location": s.get("location"),
-            "hours": s.get("hours", {}),
-            "is_open": self.is_open(),
-            "delivery": s.get("delivery", {}),
-            "pickup": s.get("pickup", {}),
-            "payments": s.get("payments", {"cash": True}),
+            "name": s["name"], "tagline": s["tagline"], "phone": s["phone"], "address": s["address"],
+            "location": s["location"], "hours": s["hours"],
+            "is_open": self.is_open(), "paused": not s.get("accepting", True),
+            "delivery": s["delivery"], "pickup": s["pickup"], "payments": s["payments"],
         }
 
     # ---------- hisob-kitob ----------
@@ -159,20 +267,21 @@ class Catalog:
             if not isinstance(item, dict):
                 raise OrderError("bad_item")
             pid, qty = item.get("id"), item.get("qty")
-            if not isinstance(pid, str) or pid not in self.products:
+            if not isinstance(pid, str) or not self.is_shown(pid):
                 raise OrderError("unknown_product", product_id=str(pid))
             if not isinstance(qty, int) or isinstance(qty, bool) or qty < 1:
                 raise OrderError("bad_qty")
             merged[pid] = merged.get(pid, 0) + qty
 
+        today = today_local()
         lines: list[Line] = []
         for pid, qty in merged.items():
             if qty > MAX_QTY_PER_ITEM:
                 raise OrderError("bad_qty")
             if not self.is_available(pid):
                 raise OrderError("unavailable", product_id=pid, name=self.products[pid]["name"])
-            p = self.products[pid]
-            lines.append(Line(product_id=pid, name=p["name"], price=p["price"], qty=qty))
+            price, _ = self.price_of(pid, today)
+            lines.append(Line(product_id=pid, name=self.products[pid]["name"], price=price, qty=qty))
 
         subtotal = sum(line.total for line in lines)
         min_order = int(type_cfg.get("min_order") or 0)

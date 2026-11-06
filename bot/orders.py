@@ -216,3 +216,28 @@ async def notify_user_status(ctx: AppContext, order: dict[str, Any]) -> None:
         await _with_retry(lambda: ctx.bot.send_message(order["user_id"], text))
     except Exception:
         log.info("Mijozga #%s holati yuborilmadi", order["id"])
+
+
+async def apply_status(ctx: AppContext, order_id: int, new_status: str) -> tuple[bool, dict[str, Any] | None]:
+    """Holatni bazada o'zgartiradi. (muvaffaqiyat, buyurtmaning hozirgi holati)."""
+    order = await ctx.db.get_order(order_id)
+    if order is None:
+        return False, None
+    if not can_transition(order, new_status) or not await ctx.db.update_status(order_id, order["status"], new_status):
+        return False, await ctx.db.get_order(order_id)
+    return True, await ctx.db.get_order(order_id)
+
+
+async def sync_admin_message(ctx: AppContext, order: dict[str, Any], changed_by: str | None) -> None:
+    """Admin paneldan o'zgartirilganda guruhdagi buyurtma xabarini ham yangilaydi."""
+    if not ctx.settings.admin_chat_id or not order.get("admin_message_id"):
+        return
+    user = await ctx.db.get_user(order["user_id"])
+    try:
+        await ctx.bot.edit_message_text(
+            text=admin_text(ctx, order, user, changed_by=changed_by),
+            chat_id=ctx.settings.admin_chat_id, message_id=order["admin_message_id"],
+            reply_markup=admin_keyboard(ctx, order), disable_web_page_preview=True,
+        )
+    except Exception:
+        log.info("Guruhdagi #%s xabarini yangilab bo'lmadi", order["id"])

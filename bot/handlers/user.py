@@ -46,12 +46,16 @@ async def _set_menu_button(ctx: AppContext, chat_id: int, lang: str) -> None:
         log.exception("Menyu tugmasini o'rnatib bo'lmadi")
 
 
-async def _send_home(message: Message, ctx: AppContext, lang: str, name: str) -> None:
+def _kb(ctx: AppContext, lang: str, user_id: int):
+    return main_keyboard(lang, admin=ctx.is_panel_admin(user_id))
+
+
+async def _send_home(message: Message, ctx: AppContext, lang: str, name: str, user_id: int) -> None:
     store = ctx.catalog.store
     await message.answer(
         t(lang, "welcome", name=escape(name or ""), store=escape(store.get("name", "")),
           tagline=escape(store.get("tagline", {}).get(lang, ""))),
-        reply_markup=main_keyboard(lang),
+        reply_markup=_kb(ctx, lang, user_id),
     )
     await _send_open_menu(message, ctx, lang)
 
@@ -59,7 +63,9 @@ async def _send_home(message: Message, ctx: AppContext, lang: str, name: str) ->
 async def _send_open_menu(message: Message, ctx: AppContext, lang: str) -> None:
     hours = ctx.catalog.store.get("hours", {})
     text = t(lang, "open_menu")
-    if not ctx.catalog.is_open():
+    if not ctx.catalog.store.get("accepting", True):
+        text = t(lang, "paused_now") + "\n\n" + text
+    elif not ctx.catalog.is_open():
         text = t(lang, "closed_now", open=hours.get("open", ""), close=hours.get("close", "")) + "\n\n" + text
     if _has_webapp(ctx):
         await message.answer(text, reply_markup=open_menu_keyboard(lang, ctx.settings.webapp_url))
@@ -85,7 +91,7 @@ async def cmd_start(message: Message, ctx: AppContext) -> None:
         await message.answer(t(lang, "ask_phone"), reply_markup=phone_keyboard(lang))
         return
     await _set_menu_button(ctx, u.id, lang)
-    await _send_home(message, ctx, lang, u.first_name)
+    await _send_home(message, ctx, lang, u.first_name, u.id)
 
 
 @router.callback_query(F.data.startswith("lang:"))
@@ -104,7 +110,7 @@ async def cb_lang(call: CallbackQuery, ctx: AppContext) -> None:
     if not user.get("phone"):
         await call.message.answer(t(lang, "ask_phone"), reply_markup=phone_keyboard(lang))
     else:
-        await _send_home(call.message, ctx, lang, u.first_name)
+        await _send_home(call.message, ctx, lang, u.first_name, u.id)
 
 
 @router.message(F.contact)
@@ -120,9 +126,9 @@ async def on_contact(message: Message, ctx: AppContext) -> None:
     u = message.from_user
     await ctx.db.upsert_user(u.id, u.first_name, u.username)
     await ctx.db.set_user_field(u.id, "phone", phone)
-    await message.answer(t(lang, "phone_saved"), reply_markup=main_keyboard(lang))
+    await message.answer(t(lang, "phone_saved"), reply_markup=_kb(ctx, lang, u.id))
     await _set_menu_button(ctx, u.id, lang)
-    await _send_home(message, ctx, lang, u.first_name)
+    await _send_home(message, ctx, lang, u.first_name, u.id)
 
 
 @router.message(F.text.in_(all_variants("btn_order")))
@@ -154,7 +160,7 @@ async def on_about(message: Message, ctx: AppContext) -> None:
         address=escape(s.get("address", {}).get(lang, "")),
     ))
     loc = s.get("location")
-    if loc and loc.get("lat") and loc.get("lon"):
+    if isinstance(loc, dict) and loc.get("lat") and loc.get("lon"):
         await message.answer_location(latitude=loc["lat"], longitude=loc["lon"])
 
 
@@ -196,4 +202,4 @@ async def cb_settings_phone(call: CallbackQuery, ctx: AppContext) -> None:
 @router.message()
 async def fallback(message: Message, ctx: AppContext) -> None:
     lang = await _lang(ctx, message.from_user.id)
-    await message.answer(t(lang, "unknown"), reply_markup=main_keyboard(lang))
+    await message.answer(t(lang, "unknown"), reply_markup=_kb(ctx, lang, message.from_user.id))

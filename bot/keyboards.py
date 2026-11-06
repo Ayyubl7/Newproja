@@ -9,7 +9,7 @@ from aiogram.types import (
     WebAppInfo,
 )
 
-from .texts import t
+from .texts import ADMIN_PANEL_BUTTON, t
 
 
 def webapp_url(base_url: str, lang: str) -> str:
@@ -31,13 +31,16 @@ def phone_keyboard(lang: str) -> ReplyKeyboardMarkup:
     )
 
 
-def main_keyboard(lang: str) -> ReplyKeyboardMarkup:
+def main_keyboard(lang: str, admin: bool = False) -> ReplyKeyboardMarkup:
+    rows = [
+        [KeyboardButton(text=t(lang, "btn_order"))],
+        [KeyboardButton(text=t(lang, "btn_my_orders")), KeyboardButton(text=t(lang, "btn_about"))],
+        [KeyboardButton(text=t(lang, "btn_contacts")), KeyboardButton(text=t(lang, "btn_settings"))],
+    ]
+    if admin:
+        rows.append([KeyboardButton(text=ADMIN_PANEL_BUTTON)])
     return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text=t(lang, "btn_order"))],
-            [KeyboardButton(text=t(lang, "btn_my_orders")), KeyboardButton(text=t(lang, "btn_about"))],
-            [KeyboardButton(text=t(lang, "btn_contacts")), KeyboardButton(text=t(lang, "btn_settings"))],
-        ],
+        keyboard=rows,
         resize_keyboard=True,
         is_persistent=True,
     )

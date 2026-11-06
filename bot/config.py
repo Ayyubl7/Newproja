@@ -53,6 +53,11 @@ class Settings:
         return f"{self.public_url}/"
 
     @property
+    def upload_dir(self) -> Path:
+        """Admin yuklagan rasmlar — baza bilan bir joyda (Railway volume / docker volume)."""
+        return self.db_path.parent / "uploads"
+
+    @property
     def use_webhook(self) -> bool:
         return self.mode == "webhook"
 

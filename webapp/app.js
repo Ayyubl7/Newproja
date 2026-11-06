@@ -14,6 +14,8 @@
       cur: "so'm", pcs: 'ta', min: 'daqiqa',
       open: 'Ochiq', closed: 'Yopiq',
       closed_banner: "Hozir yopiqmiz. Ish vaqti: {hours}. Menyuni ko'rishingiz mumkin — buyurtmalar ish vaqtida qabul qilinadi.",
+      paused_banner: "Hozir buyurtmalar vaqtincha qabul qilinmayapti. Menyuni ko'rishingiz mumkin — tez orada qaytamiz!", paused_chip: 'Pauza',
+      promo_section: '🔥 Aksiyalar', err_paused: 'Buyurtmalar vaqtincha qabul qilinmayapti',
       hero_kicker: 'Bizning hit',
       pill_eta: '{eta} daq', pill_fee: 'Yetkazish {fee}', pill_free: '{amount} dan bepul',
       sold_out: 'Tugadi', badge_hit: '🔥 Hit', badge_new: '✨ Yangi', badge_spicy: '🌶 Achchiq',
@@ -43,6 +45,8 @@
       cur: 'сум', pcs: 'шт', min: 'мин',
       open: 'Открыто', closed: 'Закрыто',
       closed_banner: 'Сейчас мы закрыты. Время работы: {hours}. Меню можно посмотреть — заказы принимаем в рабочее время.',
+      paused_banner: 'Сейчас заказы временно не принимаются. Меню можно посмотреть — скоро вернёмся!', paused_chip: 'Пауза',
+      promo_section: '🔥 Акции', err_paused: 'Заказы временно не принимаются',
       hero_kicker: 'Наш хит',
       pill_eta: '{eta} мин', pill_fee: 'Доставка {fee}', pill_free: 'Бесплатно от {amount}',
       sold_out: 'Закончился', badge_hit: '🔥 Хит', badge_new: '✨ Новинка', badge_spicy: '🌶 Острое',
@@ -83,6 +87,7 @@
     lang: params.get('lang') === 'ru' ? 'ru' : 'uz',
     store: null,
     categories: [],
+    banners: [],
     products: new Map(),
     profile: {},
     cart: new Map(),
@@ -134,7 +139,7 @@
   function categoryOf(p) { return state.categories.find((c) => c.id === p.category) || {}; }
   function imageOf(p) {
     if (p.image) {
-      const src = /^https?:\/\//.test(p.image) ? p.image : '/static/' + p.image.replace(/^\/+/, '');
+      const src = /^(https?:\/\/|\/)/.test(p.image) ? p.image : '/static/' + p.image;
       return { src, photo: true };
     }
     return { src: '/static/img/' + (categoryOf(p).icon || 'burger') + '.svg', photo: false };
@@ -277,8 +282,15 @@
   function refreshAllControls() { state.products.forEach((_, id) => refreshControls(id)); }
 
   function badge(p) {
-    if (!p.badge || !I18N.uz['badge_' + p.badge]) return '';
-    return `<span class="badge badge--${esc(p.badge)}">${t('badge_' + p.badge)}</span>`;
+    let html = '';
+    if (p.badge && I18N.uz['badge_' + p.badge]) html += `<span class="badge badge--${esc(p.badge)}">${t('badge_' + p.badge)}</span>`;
+    if (p.discount) html += `<span class="badge badge--sale">−${p.discount}%</span>`;
+    return html;
+  }
+  function priceHtml(p) {
+    return p.old_price
+      ? `<span class="price price--sale">${money(p.price)}</span> <s class="price-old">${money(p.old_price)}</s>`
+      : `<span class="price">${money(p.price)}</span>`;
   }
 
   function card(p) {
@@ -288,7 +300,7 @@
         <div class="card__name">${esc(L(p.name))}</div>
         ${L(p.description) ? `<div class="card__desc">${esc(L(p.description))}</div>` : ''}
         <div class="card__foot">
-          <span class="price">${money(p.price)}</span>
+          <span class="card__price">${priceHtml(p)}</span>
           <div data-ctrl="${esc(p.id)}">${control(p, 'block')}</div>
         </div>
       </div>
@@ -297,9 +309,13 @@
 
   function renderMenu() {
     const s = state.store;
-    const hours = s.hours && s.hours.open ? `${s.hours.open}–${s.hours.close}` : '';
+    const hours = !(s.hours && s.hours.open) ? '' : s.hours.open === s.hours.close ? '24/7' : `${s.hours.open}–${s.hours.close}`;
     const all = Array.from(state.products.values());
     const hero = all.find((p) => p.badge === 'hit' && p.available) || all.find((p) => p.available);
+    const promo = all.filter((p) => p.old_price && p.available);
+    const cats = (promo.length ? [{ id: '__promo', name: { uz: t('promo_section'), ru: t('promo_section') } }] : [])
+      .concat(state.categories);
+    const inCat = (c) => (c.id === '__promo' ? promo : all.filter((p) => p.category === c.id));
 
     const pills = [];
     if (hours) pills.push(`<span class="pill">🕒 <b>${esc(hours)}</b></span>`);
@@ -309,8 +325,8 @@
       if (s.delivery.free_from) pills.push(`<span class="pill">🎁 ${t('pill_free', { amount: '<b>' + money(s.delivery.free_from) + '</b>' })}</span>`);
     }
 
-    const sections = state.categories.map((c) => {
-      const items = all.filter((p) => p.category === c.id);
+    const sections = cats.map((c) => {
+      const items = inCat(c);
       if (!items.length) return '';
       return `<section class="section" id="cat-${esc(c.id)}" data-cat="${esc(c.id)}">
         <h2 class="section__title">${esc(L(c.name))}</h2>
@@ -325,10 +341,11 @@
           <div class="header__name">${esc(s.name)}</div>
           <div class="header__tagline">${esc(L(s.tagline))}</div>
         </div>
-        <span class="status-chip ${s.is_open ? '' : 'is-closed'}">${s.is_open ? t('open') : t('closed')}</span>
+        <span class="status-chip ${s.is_open ? '' : 'is-closed'}">${s.is_open ? t('open') : s.paused ? t('paused_chip') : t('closed')}</span>
       </header>
-      ${s.is_open ? '' : `<div class="notice notice--danger">😴 <span>${esc(t('closed_banner', { hours }))}</span></div>`}
-      ${hero ? `<div class="hero" role="button" tabindex="0" data-action="open" data-id="${esc(hero.id)}">
+      ${s.paused ? `<div class="notice notice--danger">⏸ <span>${esc(t('paused_banner'))}</span></div>`
+        : s.is_open ? '' : `<div class="notice notice--danger">😴 <span>${esc(t('closed_banner', { hours }))}</span></div>`}
+      ${state.banners.length ? bannersHtml() : hero ? `<div class="hero" role="button" tabindex="0" data-action="open" data-id="${esc(hero.id)}">
         <div class="hero__text">
           <div class="hero__kicker">${t('hero_kicker')}</div>
           <div class="hero__title">${esc(L(hero.name))}</div>
@@ -338,12 +355,57 @@
         <img class="hero__img" src="${esc(imageOf(hero).src)}" alt="">
       </div>` : ''}
       ${pills.length ? `<div class="pills">${pills.join('')}</div>` : ''}
-      <nav class="tabs" id="tabs">${state.categories
-        .filter((c) => all.some((p) => p.category === c.id))
+      <nav class="tabs" id="tabs">${cats
+        .filter((c) => inCat(c).length)
         .map((c, i) => `<button class="tab ${i === 0 ? 'is-active' : ''}" data-action="tab" data-cat="${esc(c.id)}">${esc(L(c.name))}</button>`)
         .join('')}</nav>
       ${sections}
       <div class="footer-note">${esc(s.name)} · ${esc(s.phone || '')}</div>`;
+  }
+
+  // ---------------------------------------------------------------- bannerlar (aksiya karuseli)
+  function bannersHtml() {
+    const slides = state.banners.map((b, i) => {
+      const title = L(b.title);
+      const text = L(b.text);
+      const inner = b.image
+        ? `<img class="slide__img" src="${esc(b.image)}" alt="" ${i ? 'loading="lazy"' : ''}>${title || text ? `<div class="slide__shade">
+            ${title ? `<div class="slide__title">${esc(title)}</div>` : ''}${text ? `<div class="slide__text">${esc(text)}</div>` : ''}</div>` : ''}`
+        : `<div class="slide__plain"><div class="slide__kicker">${t('promo_section')}</div>
+            <div class="slide__title">${esc(title)}</div>${text ? `<div class="slide__text">${esc(text)}</div>` : ''}</div>
+            <img class="slide__deco" src="/static/img/burger.svg" alt="">`;
+      return `<div class="slide ${b.image ? '' : 'slide--plain'}" data-action="banner" data-type="${esc(b.link_type)}" data-target="${esc(b.link_id)}">${inner}</div>`;
+    }).join('');
+    const dots = state.banners.length > 1
+      ? `<div class="dots">${state.banners.map((_, i) => `<span class="${i ? '' : 'is-active'}"></span>`).join('')}</div>` : '';
+    return `<div class="carousel"><div class="carousel__track" id="carousel">${slides}</div>${dots}</div>`;
+  }
+
+  let carouselTimer = 0;
+  function setupCarousel() {
+    const track = $('#carousel');
+    clearInterval(carouselTimer);
+    if (!track || state.banners.length < 2) return;
+    const dots = $$('.dots span');
+    const step = () => track.firstElementChild.offsetWidth + 10; // slayd + oraliq
+    const current = () => Math.round(track.scrollLeft / step());
+    track.addEventListener('scroll', () => {
+      const i = current();
+      dots.forEach((d, j) => d.classList.toggle('is-active', i === j));
+    }, { passive: true });
+    let paused = false;
+    track.addEventListener('touchstart', () => { paused = true; }, { passive: true });
+    track.addEventListener('touchend', () => { setTimeout(() => { paused = false; }, 4000); }, { passive: true });
+    carouselTimer = setInterval(() => {
+      if (paused || state.view !== 'menu' || document.hidden) return;
+      const next = (current() + 1) % state.banners.length;
+      track.scrollTo({ left: next * step(), behavior: 'smooth' });
+    }, 5000);
+  }
+
+  function openBanner(type, target) {
+    if (type === 'product' && state.products.has(target)) openSheet(target);
+    else if (type === 'category' && document.getElementById('cat-' + target)) scrollToCat(target);
   }
 
   // scroll-spy
@@ -398,6 +460,7 @@
         </div>
         <div class="sheet__body">
           <h3 class="sheet__name">${esc(L(p.name))}</h3>
+          ${p.old_price ? `<div class="sheet__price">${priceHtml(p)}</div>` : ''}
           ${L(p.description) ? `<p class="sheet__desc">${esc(L(p.description))}</p>` : '<div style="height:12px"></div>'}
         </div>
         <div class="sheet__foot" id="sheet-foot"></div>
@@ -460,7 +523,7 @@
         <div class="thumb" style="${tint(p)}">${img(p)}</div>
         <div class="row__info">
           <div class="row__name">${esc(L(p.name))}</div>
-          <div class="row__price">${money(p.price)}</div>
+          <div class="row__price">${money(p.price)}${p.old_price ? ` <s>${money(p.old_price)}</s>` : ''}</div>
           <div class="row__total">${money(p.price * q)}</div>
         </div>
         <span data-ctrl="${esc(id)}" data-variant="sm">${control(p, 'sm')}</span>
@@ -530,7 +593,7 @@
 
     $('#view-checkout').innerHTML = `
       ${pageHead(t('checkout'))}
-      ${s.is_open ? '' : `<div class="notice notice--danger">😴 <span>${esc(t('err_closed'))}</span></div>`}
+      ${s.is_open ? '' : `<div class="notice notice--danger">${s.paused ? '⏸' : '😴'} <span>${esc(t(s.paused ? 'err_paused' : 'err_closed'))}</span></div>`}
 
       ${canDelivery && canPickup ? `<div class="block">
         <h3 class="block__title">${t('how')}</h3>
@@ -718,7 +781,7 @@
     if (state.submitting) return;
     const co = state.co;
     const s = state.store;
-    if (!s.is_open) { toast(t('err_closed'), true); return; }
+    if (!s.is_open) { toast(t(s.paused ? 'err_paused' : 'err_closed'), true); return; }
     if (!state.cart.size) { toast(t('err_empty_cart'), true); return; }
     if (co.type === 'delivery' && co.address.trim().length < 5) { markInvalid('f-address'); toast(t('err_bad_address'), true); return; }
     const digits = (co.phone.match(/\d/g) || []).length;
@@ -779,7 +842,8 @@
         return;
       }
     }
-    if (code === 'closed') state.store.is_open = false;
+    if (code === 'closed' || code === 'paused') state.store.is_open = false;
+    if (code === 'paused') state.store.paused = true;
     if (code === 'min_order') { toast(t('err_min_order', { amount: money(data.min_order || 0) }), true); return; }
     toast(I18N.uz['err_' + code] ? t('err_' + code) : t('err_generic'), true);
   }
@@ -857,6 +921,7 @@
       case 'inc': e.stopPropagation(); setQty(id, (state.cart.get(id) || 0) + 1); break;
       case 'dec': e.stopPropagation(); setQty(id, (state.cart.get(id) || 0) - 1); break;
       case 'open': openSheet(id); break;
+      case 'banner': openBanner(el.dataset.type, el.dataset.target); break;
       case 'tab': scrollToCat(el.dataset.cat); haptic('select'); break;
       case 'sheet-close': closeSheet(); break;
       case 'sheet-inc': state.sheet.qty = Math.min(50, state.sheet.qty + 1); renderSheetFoot(); haptic('select'); break;
@@ -926,6 +991,7 @@
     state.store = d.store;
     state.categories = d.menu.categories;
     state.products = new Map(d.menu.products.map((p) => [p.id, p]));
+    state.banners = d.banners || [];
     state.profile = d.profile || {};
     if (state.profile.lang === 'uz' || state.profile.lang === 'ru') state.lang = state.profile.lang;
     document.documentElement.lang = state.lang;
@@ -940,6 +1006,7 @@
 
     loadCart();
     renderMenu();
+    setupCarousel();
     state.view = 'menu';
     go('menu', false);
     onScroll();

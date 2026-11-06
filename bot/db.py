@@ -1,4 +1,4 @@
-"""SQLite ma'lumotlar bazasi (WAL rejimi) — foydalanuvchilar, buyurtmalar, stop-list."""
+"""SQLite ma'lumotlar bazasi (WAL rejimi): foydalanuvchilar, buyurtmalar, menyu, aksiyalar, sozlamalar."""
 from __future__ import annotations
 
 import json
@@ -44,14 +44,83 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id, id DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 
+-- eski versiyadan qolgan (migratsiyada products.available ga o'tkaziladi)
 CREATE TABLE IF NOT EXISTS stoplist (
     product_id TEXT PRIMARY KEY
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+    id       TEXT PRIMARY KEY,
+    name_uz  TEXT NOT NULL,
+    name_ru  TEXT NOT NULL DEFAULT '',
+    icon     TEXT NOT NULL DEFAULT 'burger',
+    sort     INTEGER NOT NULL DEFAULT 0,
+    visible  INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS products (
+    id           TEXT PRIMARY KEY,
+    category_id  TEXT NOT NULL,
+    name_uz      TEXT NOT NULL,
+    name_ru      TEXT NOT NULL DEFAULT '',
+    desc_uz      TEXT NOT NULL DEFAULT '',
+    desc_ru      TEXT NOT NULL DEFAULT '',
+    price        INTEGER NOT NULL,
+    promo_price  INTEGER,
+    promo_from   TEXT,
+    promo_to     TEXT,
+    image        TEXT NOT NULL DEFAULT '',
+    badge        TEXT NOT NULL DEFAULT '',
+    available    INTEGER NOT NULL DEFAULT 1,
+    visible      INTEGER NOT NULL DEFAULT 1,
+    sort         INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL,
+    updated_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category_id, sort);
+
+CREATE TABLE IF NOT EXISTS banners (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title_uz   TEXT NOT NULL DEFAULT '',
+    title_ru   TEXT NOT NULL DEFAULT '',
+    text_uz    TEXT NOT NULL DEFAULT '',
+    text_ru    TEXT NOT NULL DEFAULT '',
+    image      TEXT NOT NULL DEFAULT '',
+    link_type  TEXT NOT NULL DEFAULT '',
+    link_id    TEXT NOT NULL DEFAULT '',
+    date_from  TEXT,
+    date_to    TEXT,
+    active     INTEGER NOT NULL DEFAULT 1,
+    sort       INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key    TEXT PRIMARY KEY,
+    value  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS admins (
+    user_id    INTEGER PRIMARY KEY,
+    name       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
 );
 """
 
 # Buyurtma raqamlari 1001 dan boshlansin
 FIRST_ORDER_ID = 1001
+
+CATEGORY_FIELDS = ("name_uz", "name_ru", "icon", "sort", "visible")
+PRODUCT_FIELDS = (
+    "category_id", "name_uz", "name_ru", "desc_uz", "desc_ru", "price", "promo_price", "promo_from",
+    "promo_to", "image", "badge", "available", "visible", "sort",
+)
+BANNER_FIELDS = (
+    "title_uz", "title_ru", "text_uz", "text_ru", "image", "link_type", "link_id",
+    "date_from", "date_to", "active", "sort",
+)
 
 
 def _now() -> str:
@@ -88,6 +157,15 @@ class Database:
             await self._conn.close()
             self._conn = None
 
+    async def _all(self, sql: str, params: tuple = ()) -> list[dict[str, Any]]:
+        cur = await self.conn.execute(sql, params)
+        return [dict(r) for r in await cur.fetchall()]
+
+    async def _one(self, sql: str, params: tuple = ()) -> dict[str, Any] | None:
+        cur = await self.conn.execute(sql, params)
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
     # ---------- users ----------
     async def upsert_user(self, user_id: int, first_name: str | None, username: str | None) -> None:
         await self.conn.execute(
@@ -98,9 +176,7 @@ class Database:
         await self.conn.commit()
 
     async def get_user(self, user_id: int) -> dict[str, Any] | None:
-        cur = await self.conn.execute("SELECT * FROM users WHERE id=?", (user_id,))
-        row = await cur.fetchone()
-        return dict(row) if row else None
+        return await self._one("SELECT * FROM users WHERE id=?", (user_id,))
 
     async def set_user_field(self, user_id: int, field: str, value: Any) -> None:
         if field not in ("lang", "phone", "last_address", "first_name"):
@@ -115,6 +191,21 @@ class Database:
     async def all_user_ids(self) -> list[int]:
         cur = await self.conn.execute("SELECT id FROM users")
         return [r[0] for r in await cur.fetchall()]
+
+    async def all_users_lang(self) -> list[tuple[int, str | None]]:
+        cur = await self.conn.execute("SELECT id, lang FROM users")
+        return [(r[0], r[1]) for r in await cur.fetchall()]
+
+    async def users_by_ids(self, ids: list[int]) -> dict[int, dict[str, Any]]:
+        if not ids:
+            return {}
+        rows = await self._all(f"SELECT * FROM users WHERE id IN ({','.join('?' * len(ids))})", tuple(ids))
+        return {r["id"]: r for r in rows}
+
+    async def count_users_since(self, since_utc: datetime) -> int:
+        cur = await self.conn.execute("SELECT COUNT(*) FROM users WHERE created_at >= ?",
+                                      (since_utc.isoformat(timespec="seconds"),))
+        return int((await cur.fetchone())[0])
 
     # ---------- orders ----------
     async def create_order(self, data: dict[str, Any]) -> int:
@@ -134,15 +225,12 @@ class Database:
         return int(cur.lastrowid)
 
     async def get_order(self, order_id: int) -> dict[str, Any] | None:
-        cur = await self.conn.execute("SELECT * FROM orders WHERE id=?", (order_id,))
-        row = await cur.fetchone()
+        row = await self._one("SELECT * FROM orders WHERE id=?", (order_id,))
         return _order_row(row) if row else None
 
     async def user_orders(self, user_id: int, limit: int = 5) -> list[dict[str, Any]]:
-        cur = await self.conn.execute(
-            "SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT ?", (user_id, limit)
-        )
-        return [_order_row(r) for r in await cur.fetchall()]
+        rows = await self._all("SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT ?", (user_id, limit))
+        return [_order_row(r) for r in rows]
 
     async def update_status(self, order_id: int, expected: str, new: str) -> bool:
         """Holatni faqat kutilgan holatdan o'zgartiradi (ikki admin bir vaqtda bossa ham to'g'ri ishlaydi)."""
@@ -158,13 +246,46 @@ class Database:
         await self.conn.commit()
 
     async def active_orders(self) -> list[dict[str, Any]]:
-        cur = await self.conn.execute(
+        rows = await self._all(
             "SELECT * FROM orders WHERE status IN ('new','accepted','on_the_way','ready') ORDER BY id"
         )
-        return [_order_row(r) for r in await cur.fetchall()]
+        return [_order_row(r) for r in rows]
+
+    async def search_orders(self, statuses: tuple[str, ...], query: str = "", before_id: int | None = None,
+                            limit: int = 30) -> list[dict[str, Any]]:
+        where = [f"status IN ({','.join('?' * len(statuses))})"]
+        params: list[Any] = list(statuses)
+        if query:
+            digits = "".join(c for c in query if c.isdigit())
+            phone_sql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'+',''),'(',''),')','') LIKE ?"
+            if query.startswith("#") and digits:
+                where.append("id = ?")
+                params.append(int(digits))
+            elif query.isdigit() and len(query) <= 7:
+                # qisqa raqam — buyurtma raqami ham, telefon bo'lagi ham bo'lishi mumkin
+                where.append(f"(id = ? OR {phone_sql})")
+                params += [int(query), f"%{digits}%"]
+            elif digits:
+                where.append(phone_sql)
+                params.append(f"%{digits}%")
+            else:
+                where.append("name LIKE ?")
+                params.append(f"%{query}%")
+        if before_id:
+            where.append("id < ?")
+            params.append(before_id)
+        params.append(limit)
+        rows = await self._all(f"SELECT * FROM orders WHERE {' AND '.join(where)} ORDER BY id DESC LIMIT ?",
+                               tuple(params))
+        return [_order_row(r) for r in rows]
+
+    async def orders_since(self, since_utc: datetime) -> list[dict[str, Any]]:
+        rows = await self._all("SELECT * FROM orders WHERE created_at >= ? ORDER BY id",
+                               (since_utc.isoformat(timespec="seconds"),))
+        return [_order_row(r) for r in rows]
 
     async def stats_since(self, since_utc: datetime) -> dict[str, int]:
-        cur = await self.conn.execute(
+        row = await self._one(
             """SELECT
                  COUNT(*)                                             AS total,
                  SUM(status='done')                                   AS done,
@@ -173,26 +294,162 @@ class Database:
                FROM orders WHERE created_at >= ?""",
             (since_utc.isoformat(timespec="seconds"),),
         )
-        row = await cur.fetchone()
         return {k: int(row[k] or 0) for k in ("total", "done", "cancelled", "revenue")}
 
-    # ---------- stoplist ----------
-    async def stoplist(self) -> set[str]:
-        cur = await self.conn.execute("SELECT product_id FROM stoplist")
-        return {r[0] for r in await cur.fetchall()}
+    # ---------- categories ----------
+    async def list_categories(self) -> list[dict[str, Any]]:
+        return await self._all("SELECT * FROM categories ORDER BY sort, rowid")
 
-    async def toggle_stop(self, product_id: str) -> bool:
-        """True qaytarsa — mahsulot endi stop-listda (sotuvda yo'q)."""
-        cur = await self.conn.execute("DELETE FROM stoplist WHERE product_id=?", (product_id,))
-        if cur.rowcount:
-            await self.conn.commit()
-            return False
-        await self.conn.execute("INSERT INTO stoplist(product_id) VALUES (?)", (product_id,))
+    async def get_category(self, cat_id: str) -> dict[str, Any] | None:
+        return await self._one("SELECT * FROM categories WHERE id=?", (cat_id,))
+
+    async def create_category(self, cat_id: str, data: dict[str, Any]) -> None:
+        cur = await self.conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 FROM categories")
+        sort = data.get("sort", (await cur.fetchone())[0])
+        await self.conn.execute(
+            "INSERT INTO categories(id, name_uz, name_ru, icon, sort, visible) VALUES (?, ?, ?, ?, ?, ?)",
+            (cat_id, data["name_uz"], data.get("name_ru", ""), data.get("icon", "burger"), sort,
+             int(data.get("visible", 1))),
+        )
         await self.conn.commit()
-        return True
+
+    async def update_category(self, cat_id: str, data: dict[str, Any]) -> None:
+        await self._update("categories", "id", cat_id, data, CATEGORY_FIELDS)
+
+    async def delete_category(self, cat_id: str) -> None:
+        await self.conn.execute("DELETE FROM categories WHERE id=?", (cat_id,))
+        await self.conn.commit()
+
+    async def count_products_in(self, cat_id: str) -> int:
+        cur = await self.conn.execute("SELECT COUNT(*) FROM products WHERE category_id=?", (cat_id,))
+        return int((await cur.fetchone())[0])
+
+    # ---------- products ----------
+    async def list_products(self) -> list[dict[str, Any]]:
+        return await self._all(
+            """SELECT p.* FROM products p LEFT JOIN categories c ON c.id = p.category_id
+               ORDER BY COALESCE(c.sort, 1e9), p.sort, p.rowid"""
+        )
+
+    async def get_product(self, product_id: str) -> dict[str, Any] | None:
+        return await self._one("SELECT * FROM products WHERE id=?", (product_id,))
+
+    async def create_product(self, product_id: str, data: dict[str, Any]) -> None:
+        now = _now()
+        if "sort" not in data:
+            cur = await self.conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 FROM products WHERE category_id=?",
+                                          (data["category_id"],))
+            data = {**data, "sort": (await cur.fetchone())[0]}
+        cols = [f for f in PRODUCT_FIELDS if f in data]
+        await self.conn.execute(
+            f"INSERT INTO products(id, {', '.join(cols)}, created_at, updated_at) "
+            f"VALUES (?, {', '.join('?' * len(cols))}, ?, ?)",
+            (product_id, *[_db_value(data[c]) for c in cols], now, now),
+        )
+        await self.conn.commit()
+
+    async def update_product(self, product_id: str, data: dict[str, Any]) -> None:
+        await self._update("products", "id", product_id, data, PRODUCT_FIELDS, touch=True)
+
+    async def delete_product(self, product_id: str) -> None:
+        await self.conn.execute("DELETE FROM products WHERE id=?", (product_id,))
+        await self.conn.commit()
+
+    async def reorder(self, table: str, ids: list[Any]) -> None:
+        if table not in ("categories", "products", "banners"):
+            raise ValueError(table)
+        await self.conn.executemany(f"UPDATE {table} SET sort=? WHERE id=?", [(i, v) for i, v in enumerate(ids)])
+        await self.conn.commit()
+
+    async def image_in_use(self, image: str) -> bool:
+        cur = await self.conn.execute(
+            "SELECT (SELECT COUNT(*) FROM products WHERE image=?) + (SELECT COUNT(*) FROM banners WHERE image=?)",
+            (image, image),
+        )
+        return int((await cur.fetchone())[0]) > 0
+
+    # ---------- banners ----------
+    async def list_banners(self) -> list[dict[str, Any]]:
+        return await self._all("SELECT * FROM banners ORDER BY sort, id")
+
+    async def get_banner(self, banner_id: int) -> dict[str, Any] | None:
+        return await self._one("SELECT * FROM banners WHERE id=?", (banner_id,))
+
+    async def create_banner(self, data: dict[str, Any]) -> int:
+        cur = await self.conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 FROM banners")
+        data = {**data, "sort": data.get("sort", (await cur.fetchone())[0])}
+        cols = [f for f in BANNER_FIELDS if f in data]
+        cur = await self.conn.execute(
+            f"INSERT INTO banners({', '.join(cols)}, created_at) VALUES ({', '.join('?' * len(cols))}, ?)",
+            (*[_db_value(data[c]) for c in cols], _now()),
+        )
+        await self.conn.commit()
+        return int(cur.lastrowid)
+
+    async def update_banner(self, banner_id: int, data: dict[str, Any]) -> None:
+        await self._update("banners", "id", banner_id, data, BANNER_FIELDS)
+
+    async def delete_banner(self, banner_id: int) -> None:
+        await self.conn.execute("DELETE FROM banners WHERE id=?", (banner_id,))
+        await self.conn.commit()
+
+    # ---------- settings ----------
+    async def get_setting(self, key: str) -> Any:
+        row = await self._one("SELECT value FROM settings WHERE key=?", (key,))
+        return json.loads(row["value"]) if row else None
+
+    async def set_setting(self, key: str, value: Any) -> None:
+        await self.conn.execute(
+            "INSERT INTO settings(key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (key, json.dumps(value, ensure_ascii=False)),
+        )
+        await self.conn.commit()
+
+    # ---------- admins ----------
+    async def list_admins(self) -> list[dict[str, Any]]:
+        return await self._all("SELECT * FROM admins ORDER BY created_at")
+
+    async def add_admin(self, user_id: int, name: str) -> None:
+        await self.conn.execute(
+            "INSERT INTO admins(user_id, name, created_at) VALUES (?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET name=excluded.name",
+            (user_id, name, _now()),
+        )
+        await self.conn.commit()
+
+    async def remove_admin(self, user_id: int) -> None:
+        await self.conn.execute("DELETE FROM admins WHERE user_id=?", (user_id,))
+        await self.conn.commit()
+
+    # ---------- legacy stoplist ----------
+    async def pop_legacy_stoplist(self) -> set[str]:
+        cur = await self.conn.execute("SELECT product_id FROM stoplist")
+        ids = {r[0] for r in await cur.fetchall()}
+        if ids:
+            await self.conn.execute("DELETE FROM stoplist")
+            await self.conn.commit()
+        return ids
+
+    # ---------- helpers ----------
+    async def _update(self, table: str, key: str, key_value: Any, data: dict[str, Any],
+                      allowed: tuple[str, ...], touch: bool = False) -> None:
+        cols = [c for c in allowed if c in data]
+        if not cols:
+            return
+        sets = ", ".join(f"{c}=?" for c in cols)
+        params = [_db_value(data[c]) for c in cols]
+        if touch:
+            sets += ", updated_at=?"
+            params.append(_now())
+        await self.conn.execute(f"UPDATE {table} SET {sets} WHERE {key}=?", (*params, key_value))
+        await self.conn.commit()
 
 
-def _order_row(row: aiosqlite.Row) -> dict[str, Any]:
+def _db_value(v: Any) -> Any:
+    return int(v) if isinstance(v, bool) else v
+
+
+def _order_row(row: dict[str, Any]) -> dict[str, Any]:
     d = dict(row)
     d["items"] = json.loads(d["items"])
     return d

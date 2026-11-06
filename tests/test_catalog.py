@@ -1,14 +1,26 @@
-from datetime import datetime
+import asyncio
+from datetime import date, datetime, timedelta
 
 import pytest
 
-from bot.catalog import TASHKENT_TZ, Catalog, OrderError, fmt_money
+from bot.catalog import TASHKENT_TZ, Catalog, OrderError, fmt_money, promo_active, today_local
 from bot.config import DATA_DIR
+from bot.db import Database
+from bot.seed import ensure_seeded
+
+
+async def load_catalog(path) -> Catalog:
+    db = Database(path)
+    await db.connect()
+    await ensure_seeded(db, DATA_DIR)
+    cat = await Catalog.from_db(db)
+    await db.close()
+    return cat
 
 
 @pytest.fixture
-def catalog() -> Catalog:
-    return Catalog.load(DATA_DIR)
+def catalog(tmp_path) -> Catalog:
+    return asyncio.run(load_catalog(tmp_path / "c.db"))
 
 
 def at(hh: int, mm: int = 0) -> datetime:
@@ -56,7 +68,7 @@ def test_quote_rejects_bad_input(catalog, items, code):
 
 
 def test_stoplist_blocks_product(catalog):
-    catalog.stoplist.add("classic")
+    catalog.products["classic"]["available"] = False
     with pytest.raises(OrderError) as e:
         catalog.quote([{"id": "classic", "qty": 3}], "delivery")
     assert e.value.code == "unavailable"
@@ -76,6 +88,61 @@ def test_hours_same_day(catalog):
     catalog.store["hours"] = {"open": "09:00", "close": "22:00"}
     assert catalog.is_open(at(12))
     assert not catalog.is_open(at(22, 30))
+
+
+def test_hidden_product_and_category(catalog):
+    catalog.products["fries"]["visible"] = False
+    with pytest.raises(OrderError) as e:
+        catalog.quote([{"id": "fries", "qty": 3}], "pickup")
+    assert e.value.code == "unknown_product"
+    next(c for c in catalog.categories if c["id"] == "drinks")["visible"] = False
+    menu = catalog.public_menu()
+    assert "drinks" not in [c["id"] for c in menu["categories"]]
+    assert not any(p["category"] == "drinks" or p["id"] == "fries" for p in menu["products"])
+
+
+def test_promo_price_used_in_quote_and_menu(catalog):
+    p = catalog.products["classic"]
+    p["promo_price"] = 24000
+    q = catalog.quote([{"id": "classic", "qty": 2}], "pickup")
+    assert q.subtotal == 48000
+    item = next(i for i in catalog.public_menu()["products"] if i["id"] == "classic")
+    assert (item["price"], item["old_price"], item["discount"]) == (24000, 32000, 25)
+
+
+def test_promo_dates():
+    today = date(2026, 11, 6)
+    p = {"price": 100, "promo_price": 80, "promo_from": "2026-11-07", "promo_to": None}
+    assert not promo_active(p, today)
+    p["promo_from"], p["promo_to"] = "2026-11-01", "2026-11-05"
+    assert not promo_active(p, today)
+    p["promo_to"] = "2026-11-06"
+    assert promo_active(p, today)
+    p["promo_price"] = 120  # eski narxdan qimmat — aksiya hisoblanmaydi
+    assert not promo_active(p, today)
+
+
+def test_paused_store_is_closed(catalog):
+    catalog.store["hours"] = {"open": "00:00", "close": "00:00"}
+    assert catalog.is_open()
+    catalog.store["accepting"] = False
+    assert not catalog.is_open() and catalog.public_store()["paused"]
+
+
+def test_banners_respect_dates_and_links(catalog):
+    today = today_local()
+    base = {"title_uz": "Aksiya", "title_ru": "", "text_uz": "", "text_ru": "", "image": "", "active": 1,
+            "link_type": "product", "link_id": "classic", "date_from": None, "date_to": None}
+    catalog.banners = [
+        {**base, "id": 1},
+        {**base, "id": 2, "date_to": (today - timedelta(days=1)).isoformat()},
+        {**base, "id": 3, "active": 0},
+        {**base, "id": 4, "link_id": "nope"},
+    ]
+    out = catalog.public_banners()
+    assert [b["id"] for b in out] == [1, 4]
+    assert out[0]["title"]["ru"] == "Aksiya"  # ruscha bo'sh bo'lsa o'zbekchasi
+    assert out[1]["link_type"] == ""  # mavjud bo'lmagan mahsulotga havola o'chiriladi
 
 
 def test_fmt_money():

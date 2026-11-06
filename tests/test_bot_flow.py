@@ -8,6 +8,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.base import BaseSession
 from aiogram.enums import ParseMode
 from aiogram.methods import TelegramMethod
+from aiogram.methods import GetMe
 from aiogram.types import CallbackQuery, Chat, Contact, Message, Update, User
 
 from bot.catalog import Catalog
@@ -16,6 +17,7 @@ from bot.context import AppContext
 from bot.db import Database
 from bot.handlers import build_router
 from bot.orders import OrderCb, announce_new_order
+from bot.seed import ensure_seeded
 
 from .test_api import TOKEN, make_settings
 
@@ -31,6 +33,8 @@ class FakeSession(BaseSession):
 
     async def make_request(self, bot, method, timeout=None):  # noqa: ANN001
         self.calls.append(method)
+        if isinstance(method, GetMe):
+            return User(id=1, is_bot=True, first_name="Ayva", username="ayvaburgers_bot")
         if method.__returning__ is Message:
             self._mid += 1
             chat_id = getattr(method, "chat_id", USER_ID)
@@ -65,8 +69,8 @@ async def setup(tmp: Path):
     settings = make_settings(tmp, admin_chat_id=ADMIN_CHAT)
     db = Database(settings.db_path)
     await db.connect()
-    catalog = Catalog.load(DATA_DIR)
-    ctx = AppContext(settings=settings, bot=bot, db=db, catalog=catalog)
+    await ensure_seeded(db, DATA_DIR)
+    ctx = AppContext(settings=settings, bot=bot, db=db, catalog=await Catalog.from_db(db))
     dp = _dispatcher()
     dp["ctx"] = ctx
     return dp, bot, session, ctx
@@ -175,12 +179,54 @@ def test_admin_order_lifecycle(tmp_path):
             cb = CallbackQuery(id="3", from_user=user(7), chat_instance="z", data="sl:t:classic",
                                message=msg("sl", chat_id=ADMIN_CHAT, uid=7))
             await feed(dp, bot, callback_query=cb)
-            assert "classic" in ctx.catalog.stoplist and "classic" in await ctx.db.stoplist()
+            assert not ctx.catalog.products["classic"]["available"]
+            assert not (await ctx.db.get_product("classic"))["available"]
 
             # oddiy foydalanuvchi /stats yoza olmaydi
             session.calls.clear()
             await feed(dp, bot, message=msg("/stats"))
             assert all("Statistika" not in (getattr(c, "text", "") or "") for c in session.calls)
+        finally:
+            await ctx.db.close()
+    asyncio.run(go())
+
+
+def test_panel_command(tmp_path):
+    async def go():
+        dp, bot, session, ctx = await setup(tmp_path)
+        ctx.settings = make_settings(tmp_path, admin_chat_id=ADMIN_CHAT, admin_ids=frozenset({USER_ID}))
+        try:
+            await ctx.db.upsert_user(USER_ID, "Ali", "ali")
+            await ctx.db.set_user_field(USER_ID, "lang", "uz")
+            await ctx.db.set_user_field(USER_ID, "phone", "+998901112233")
+
+            # egasi: bosh menyuda "🛠 Admin panel" tugmasi bor
+            await feed(dp, bot, message=msg("/start"))
+            kb = next(c.reply_markup for c in session.calls if getattr(c, "reply_markup", None) is not None
+                      and hasattr(c.reply_markup, "keyboard"))
+            assert kb.keyboard[-1][0].text == "🛠 Admin panel"
+
+            session.calls.clear()
+            await feed(dp, bot, message=msg("🛠 Admin panel"))
+            buttons = session.calls[-1].reply_markup.inline_keyboard
+            assert buttons[0][0].web_app.url == "https://example.com/admin/"
+            token = buttons[1][0].url.split("t=")[1]
+            assert ctx.use_login_token(token) == USER_ID and ctx.use_login_token(token) is None
+
+            # /start panel deep-link
+            session.calls.clear()
+            await feed(dp, bot, message=msg("/start panel"))
+            assert session.calls[-1].reply_markup.inline_keyboard[0][0].web_app
+
+            # begona odam — ruxsat yo'q va o'z ID'sini ko'radi
+            session.calls.clear()
+            await feed(dp, bot, message=msg("/panel", chat_id=55, uid=55))
+            assert "55" in session.calls[-1].text and session.calls[-1].reply_markup is None
+
+            # guruhda — shaxsiy chatga havola
+            session.calls.clear()
+            await feed(dp, bot, message=msg("/panel", chat_id=ADMIN_CHAT, uid=7))
+            assert session.calls[-1].reply_markup.inline_keyboard[0][0].url == "https://t.me/ayvaburgers_bot?start=panel"
         finally:
             await ctx.db.close()
     asyncio.run(go())

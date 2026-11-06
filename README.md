@@ -1,51 +1,68 @@
 # 🍔 Ayva Burgers — Telegram yetkazib berish boti
 
-Telegram bot + Mini App (bot ichida ochiladigan menyu sahifasi). Mijoz rasmli menyudan taom tanlaydi,
-savatga soladi, manzil va lokatsiyani belgilaydi, buyurtma beradi. Buyurtma darhol xodimlar guruhiga
-tushadi, xodimlar tugmalar bilan holatini o'zgartiradi, mijozga esa har bir holat haqida xabar boradi.
+Telegram bot, Mini App (bot ichida ochiladigan menyu) va admin panel. Mijoz rasmli menyudan taom tanlaydi,
+savatga soladi, manzil va lokatsiyani belgilaydi, buyurtma beradi. Buyurtma darhol xodimlar guruhiga va
+admin panelga tushadi. Restoran egasi menyu, narx, rasm, aksiya va sozlamalarni panelning o'zidan boshqaradi —
+dasturchi kerak emas.
 
 ![Ayva Burgers Mini App](docs/preview.png)
+![Ayva Burgers admin panel](docs/admin-preview.png)
 
 ## Imkoniyatlar
 
 **Mijoz uchun (o'zbekcha / ruscha)**
 - `/start` → til tanlash → telefon raqamni yuborish → bosh menyu
-- Mini App: kategoriyalar, rasmli kartalar, «Hit / Yangi / Achchiq» belgilari, mahsulot oynasi, savat
+- Mini App: aksiya bannerlari, «🔥 Aksiyalar» bo'limi, kategoriyalar, rasmli kartalar, chegirma narxlari
+  (eski narx chizilgan), «Hit / Yangi / Achchiq» belgilari, savat
 - Bepul yetkazishgacha qolgan summa ko'rsatkichi, sous/ichimlik takliflari
 - Yetkazib berish yoki olib ketish, manzil + xaritada lokatsiya (GPS yoki qo'lda)
-- To'lov: naqd pul (Click va Payme «Tez orada» bo'lib turibdi)
-- Ish vaqtidan tashqari buyurtma qabul qilinmaydi (menyuni ko'rish mumkin)
+- To'lov: naqd pul (Click va Payme «Tez orada»)
+- Ish vaqtidan tashqari yoki admin to'xtatganda buyurtma qabul qilinmaydi (menyuni ko'rish mumkin)
 - «📦 Buyurtmalarim», «ℹ️ Biz haqimizda», «📞 Aloqa», «⚙️ Sozlamalar»
-- Telegram'ning yorug' va tungi mavzusiga moslashadi
 
-**Xodimlar uchun (admin guruhi)**
-- Har bir buyurtma: mijoz, telefon, manzil, Yandex/Google xarita havolasi, mahsulotlar, summa
-- Tugmalar: ✅ Qabul qilish → 🚗 Yo'lga chiqdi / 🛍 Tayyor → 🏁 Yakunlash, ❌ Bekor qilish (tasdiq bilan)
-- `/active` — faol buyurtmalar, `/stats` — bugun va 7 kunlik statistika
-- `/stoplist` — tugagan mahsulotni bir tugma bilan o'chirish/yoqish
-- `/reload` — `menu.json` va `store.json` ni serverni to'xtatmasdan qayta o'qish
-- `/broadcast` — reklama xabarini hamma mijozlarga yuborish (xabarga reply qilib)
+**Admin panel** (botda `/panel` yoki «🛠 Admin panel» tugmasi)
+- 📋 **Buyurtmalar** — faol buyurtmalar, bir tugma bilan holat o'zgartirish, tarix, raqam/telefon bo'yicha qidiruv.
+  Yangi buyurtma kelsa panel o'zi xabar beradi
+- 🍔 **Menyu** — mahsulot qo'shish/tahrirlash/o'chirish: rasm (telefondan yuklanadi, avtomatik kichraytiriladi),
+  nomi va tarkibi (uz/ru), narx, kategoriya, belgi. «Sotuvda bor» (stop-list) va «Menyuda ko'rsatish» o'tkazgichlari,
+  tartibni o'zgartirish. Kategoriyalarni qo'shish, nomlash, rasmini tanlash, yashirish
+- 🔥 **Aksiyalar** — chegirma narxi (sana bilan yoki muddatsiz, −10/−20/−30% tugmalari),
+  menyu tepasida aylanadigan bannerlar (rasm yoki sarlavha, bosilganda mahsulot yoki kategoriyani ochadi)
+- 📊 **Statistika** — bugun / 7 / 30 kun: tushum, buyurtmalar, o'rtacha chek, yangi mijozlar,
+  kunlik tushum grafigi, soatlar bo'yicha yuklama, eng ko'p sotilgan mahsulotlar
+- ⚙️ **Sozlamalar** — buyurtmalarni vaqtincha to'xtatish, restoran ma'lumotlari, manzil va lokatsiya, ish vaqti,
+  yetkazish narxi, bepul yetkazish chegarasi, minimal buyurtma, to'lov turlari, adminlar ro'yxati,
+  mijozlarga xabar (rasm + matn + «Menyuni ochish» tugmasi)
+- Telefonda Telegram ichida ochiladi; kompyuterda — bot beradigan bir martalik havola orqali (parolsiz)
+
+**Xodimlar guruhi**
+- Har bir buyurtma: mijoz, telefon, manzil, xarita havolasi, mahsulotlar, summa
+- Tugmalar: ✅ Qabul qilish → 🚗 Yo'lga chiqdi / 🛍 Tayyor → 🏁 Yakunlash, ❌ Bekor qilish
+  (panel bilan sinxron — qayerda bosilsa ham ikkalasida yangilanadi)
+- `/active`, `/stats`, `/stoplist`, `/broadcast`, `/panel`, `/id`
 
 **Xavfsizlik va tezlik**
-- Narxlar faqat serverda hisoblanadi — mijoz narxni o'zgartira olmaydi
-- Mini App so'rovlari Telegram imzosi (`initData`) bilan tekshiriladi
-- Bitta mijoz 15 soniyada bittadan ortiq buyurtma bera olmaydi
+- Narxlar faqat serverda hisoblanadi (aksiya narxi ham) — mijoz narxni o'zgartira olmaydi
+- Mini App va panel so'rovlari Telegram imzosi (`initData`) bilan tekshiriladi; kompyuterdagi kirish —
+  imzolangan cookie (7 kun), bir martalik havola 10 daqiqa amal qiladi
+- Panelga faqat egalar (`ADMIN_IDS`) va ular qo'shgan adminlar kira oladi
 - Asinxron server (aiohttp + aiogram 3, webhook): 200–300 ta bir vaqtdagi mijoz uchun bemalol yetadi
 
 ## Tuzilishi
 
 ```
-bot/            Python server: bot + Mini App API
-  handlers/     mijoz (user.py) va admin (admin.py) handlerlari
-  catalog.py    menyu, narx hisoblash, ish vaqti
-  orders.py     buyurtma xabarlari va holatlari
-  web.py        Mini App API (/api/bootstrap, /api/order)
-  texts.py      bot matnlari (uz/ru)
-webapp/         Mini App: index.html, styles.css, app.js, rasmlar
-data/
-  menu.json     MENYU — kategoriyalar, mahsulotlar, narxlar
-  store.json    Do'kon: manzil, telefon, ish vaqti, yetkazish narxi, to'lov turlari
-tests/          avtomatik testlar
+bot/              Python server
+  handlers/       bot: mijoz (user.py) va admin (admin.py)
+  admin_api.py    admin panel API (/api/admin/*), rasm yuklash, kirish
+  web.py          Mini App API (/api/bootstrap, /api/order)
+  catalog.py      menyu, aksiya narxlari, ish vaqti, narx hisoblash
+  db.py           SQLite: buyurtmalar, mijozlar, menyu, bannerlar, sozlamalar, adminlar
+  orders.py       buyurtma xabarlari va holatlari
+  seed.py         birinchi ishga tushishda data/*.json → baza
+webapp/           Mini App (index.html, app.js, styles.css, rasmlar)
+webapp/admin/     admin panel (index.html, admin.js, admin.css)
+data/             menu.json, store.json — faqat birinchi ishga tushish uchun namuna
+tests/            avtomatik testlar
 ```
 
 ## 1. Telegram'da tayyorgarlik (5 daqiqa)
@@ -54,8 +71,12 @@ tests/          avtomatik testlar
    Berilgan **tokenni** saqlang.
 2. BotFather'da: `/setuserpic` (logo), `/setdescription`, `/setabouttext`.
 3. Xodimlar uchun Telegram **guruh** oching (masalan «Ayva — Buyurtmalar»), botni qo'shing va
-   **admin** qiling (shunda bot guruhdagi buyruqlarni ko'radi).
-4. Bot ishga tushgach, guruhda `/id` yozing — chiqqan raqamni `ADMIN_CHAT_ID` ga qo'ying.
+   **admin** qiling.
+4. Bot ishga tushgach:
+   - guruhda `/id` yozing → chiqqan raqam `ADMIN_CHAT_ID` bo'ladi;
+   - botga shaxsiy `/id` yozing → sizning ID'ingiz `ADMIN_IDS` bo'ladi (panel egasi).
+   Ikkalasini server sozlamalariga qo'yib, qayta ishga tushiring.
+5. Botga `/panel` yozing — admin panel ochiladi. Boshqa xodimlarni panel → Sozlamalar → Adminlar orqali qo'shasiz.
 
 ## 2. Serverga joylash
 
@@ -64,11 +85,10 @@ tests/          avtomatik testlar
 1. Bu repozitoriyni GitHub'ga yuklang.
 2. [railway.com](https://railway.com) → **New Project → Deploy from GitHub repo** → shu repo.
 3. Servis **Settings → Networking → Generate Domain** (https manzil beriladi, `PUBLIC_URL` avtomatik olinadi).
-4. **Variables**: `BOT_TOKEN`, `ADMIN_CHAT_ID` (va xohlasangiz `ADMIN_IDS`, `ADMIN_LANG`).
-5. **Volume** qo'shing, mount path: `/data` — buyurtmalar bazasi qayta deployda o'chib ketmasligi uchun.
+4. **Variables**: `BOT_TOKEN`, `ADMIN_CHAT_ID`, `ADMIN_IDS` (xohlasangiz `ADMIN_LANG=ru`).
+5. **Volume** qo'shing, mount path: `/data` — **majburiy**: buyurtmalar, menyu va yuklangan rasmlar shu yerda
+   saqlanadi. Volume bo'lmasa, har deployda hammasi o'chib ketadi.
 6. Deploy tugagach botga `/start` yozing.
-
-Menyuni o'zgartirish: `data/menu.json` ni tahrirlab GitHub'ga push qiling — Railway o'zi qayta joylaydi.
 
 ### B variant — o'z VPS'ingiz (Docker + avtomatik HTTPS)
 
@@ -76,12 +96,12 @@ Kerak: VPS (Ubuntu, 1 GB RAM yetadi), domen (masalan `menu.ayvaburgers.uz`) — 
 
 ```bash
 git clone <repo> ayva && cd ayva
-cp .env.example .env      # BOT_TOKEN, ADMIN_CHAT_ID, DOMAIN ni to'ldiring
+cp .env.example .env      # BOT_TOKEN, ADMIN_CHAT_ID, ADMIN_IDS, DOMAIN ni to'ldiring
 docker compose up -d --build
 docker compose logs -f bot
 ```
 
-Menyuni o'zgartirish: `data/menu.json` ni tahrirlang va guruhda `/reload` yozing (qayta ishga tushirish shart emas).
+Baza va rasmlar `ayva-data` docker volume'ida saqlanadi.
 
 ### Kompyuterda sinash
 
@@ -90,7 +110,7 @@ python -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 cp .env.example .env      # BOT_TOKEN ni yozing
 
-# Faqat dizaynni ko'rish (Telegram'siz): http://localhost:8080
+# Faqat dizaynni ko'rish (Telegram'siz): http://localhost:8080 va http://localhost:8080/admin/
 BOT_MODE=web DEV_MODE=1 python -m bot
 
 # Botni to'liq sinash uchun https tunnel kerak (Mini App faqat https'da ochiladi):
@@ -100,36 +120,20 @@ python -m bot
 pytest -q                 # testlar
 ```
 
-## 3. Menyu va ma'lumotlarni o'zgartirish
+`DEV_MODE=1` da panel parolsiz ochiladi — serverda **hech qachon** yoqmang.
 
-**`data/menu.json`** — har bir mahsulot:
+## 3. Menyu va ma'lumotlar
 
-```jsonc
-{
-  "id": "classic",                       // lotincha, takrorlanmas, keyin o'zgartirmang
-  "category": "burgers",                 // categories ichidagi id
-  "price": 32000,                        // so'mda, butun son
-  "badge": "hit",                        // hit | new | spicy | ""
-  "image": "img/products/classic.jpg",   // bo'sh bo'lsa kategoriya rasmi chiqadi
-  "name": { "uz": "Klassik burger", "ru": "Классический бургер" },
-  "description": { "uz": "...", "ru": "..." }
-}
-```
+Hammasi admin paneldan o'zgartiriladi, serverni qayta ishga tushirish kerak emas — o'zgarish mijozlarda darhol ko'rinadi.
 
-Mahsulot rasmlari: kvadrat yoki 4:3, ~800 px, JPG/WebP — `webapp/img/products/` papkasiga qo'ying.
-
-**`data/store.json`** — nom, shior, manzil, telefon, Telegram/Instagram, xaritadagi joylashuv,
-ish vaqti (`"open": "10:00", "close": "02:00"` — yarim tundan o'tishi mumkin), yetkazish narxi
-(`fee`), bepul yetkazish chegarasi (`free_from`), minimal buyurtma (`min_order`), to'lov turlari.
-
-**Logo va ranglar**: logo — `webapp/img/logo.svg`; asosiy rang — `webapp/styles.css` boshidagi `--accent`.
+- `data/menu.json` va `data/store.json` faqat **birinchi** ishga tushishda bazaga namuna sifatida yuklanadi.
+  Keyin ular o'qilmaydi, menyu bazada saqlanadi.
+- Mahsulot rasmlari: telefondan yoki kompyuterdan yuklang (JPG/PNG/WebP, 12 MB gacha). Server ularni
+  1200 px gacha kichraytirib, WebP'ga o'giradi. Rasm bo'lmasa kategoriyaning chizilgan rasmi chiqadi.
+- **Logo va ranglar**: logo — `webapp/img/logo.svg`; asosiy rang — `webapp/styles.css` boshidagi `--accent`.
 
 ## 4. Click va Payme (keyingi bosqich)
 
-Hozir ular Mini App'da «Tez orada» bo'lib turibdi. Ulash uchun Click/Payme bilan shartnoma tuziladi va
-@BotFather → Payments bo'limidan provayder tokeni olinadi. Shundan so'ng to'lov Telegram ichida
-(`openInvoice`) bo'ladi. Bu uchun to'lov kodi qo'shiladi — faqat `store.json` da `"click": true`
-qilib qo'yish yetarli emas (u holda pul olinmaydi).
-
-**Lokatsiya**: `store.json` dagi `"location": null` o'rniga restoran koordinatalarini yozing,
-masalan `{ "lat": 41.3110, "lon": 69.2405 }` — «Biz haqimizda» bo'limida xarita pini chiqadi.
+Hozir ular Mini App va panelda «Tez orada» bo'lib turibdi va yoqib bo'lmaydi. Ulash uchun Click/Payme bilan
+shartnoma tuziladi va @BotFather → Payments bo'limidan provayder tokeni olinadi. Shundan so'ng to'lov
+Telegram ichida (`openInvoice`) bo'ladi — buning uchun to'lov kodi qo'shiladi.

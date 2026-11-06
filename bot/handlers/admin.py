@@ -1,39 +1,45 @@
-"""Admin: buyurtma holatlari, stop-list, statistika, reklama yuborish."""
+"""Admin: panelni ochish, buyurtma holatlari, stop-list, statistika, reklama yuborish."""
 from __future__ import annotations
 
-import asyncio
 import logging
 from html import escape
 from typing import Any
 
 from aiogram import F, Router
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError, TelegramRetryAfter
-from aiogram.filters import BaseFilter, Command
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import BaseFilter, Command, CommandStart
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
-from ..catalog import Catalog, fmt_money
-from ..config import DATA_DIR
-from ..context import AppContext, spawn
+from ..broadcast import start_broadcast
+from ..catalog import fmt_money
+from ..context import AppContext
 from ..db import days_ago_utc, start_of_today_utc
 from ..orders import (
     OrderCb,
     admin_keyboard,
     admin_text,
-    can_transition,
+    apply_status,
     cancel_confirm_keyboard,
     item_lines,
     notify_user_status,
 )
-from ..texts import at, t
+from ..texts import ADMIN_PANEL_BUTTON, at, t
 
 log = logging.getLogger(__name__)
 router = Router(name="admin")
 
 
 class IsAdmin(BaseFilter):
+    """Panel adminlari yoki admin guruhi ichidagi har kim."""
+
     async def __call__(self, event: Message | CallbackQuery, ctx: AppContext) -> bool:
         chat = event.chat if isinstance(event, Message) else (event.message.chat if event.message else None)
         return ctx.is_admin(event.from_user.id if event.from_user else None, chat.id if chat else None)
+
+
+class IsPanelAdmin(BaseFilter):
+    async def __call__(self, event: Message, ctx: AppContext) -> bool:
+        return bool(event.from_user) and ctx.is_panel_admin(event.from_user.id)
 
 
 # ---------- /id: sozlash uchun (hamma uchun ochiq) ----------
@@ -43,42 +49,78 @@ async def cmd_id(message: Message, ctx: AppContext) -> None:
                             user_id=message.from_user.id if message.from_user else 0))
 
 
-# ---------- buyurtma holati ----------
+# ---------- admin panel ----------
+async def send_panel(message: Message, ctx: AppContext, user_id: int) -> None:
+    lang = ctx.settings.admin_lang
+    url = ctx.settings.public_url
+    if not url.startswith("https://"):
+        await message.answer(at(lang, "panel_no_https"))
+        return
+    token = ctx.new_login_token(user_id)
+    await message.answer(at(lang, "panel_text"), reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=at(lang, "panel_open"), web_app=WebAppInfo(url=f"{url}/admin/"))],
+        [InlineKeyboardButton(text=at(lang, "panel_desktop"), url=f"{url}/admin/login?t={token}")],
+    ]))
+
+
+@router.message(CommandStart(deep_link=True, magic=F.args == "panel"), F.chat.type == "private", IsPanelAdmin())
+async def start_panel(message: Message, ctx: AppContext) -> None:
+    await send_panel(message, ctx, message.from_user.id)
+
+
+@router.message(Command("panel"))
+@router.message(F.text == ADMIN_PANEL_BUTTON)
+async def cmd_panel(message: Message, ctx: AppContext) -> None:
+    lang = ctx.settings.admin_lang
+    uid = message.from_user.id if message.from_user else 0
+    if message.chat.type != "private":
+        if not ctx.is_admin(uid, message.chat.id):
+            return
+        me = await ctx.bot.me()
+        await message.answer(at(lang, "panel_private_only"), reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=at(lang, "panel_open"), url=f"https://t.me/{me.username}?start=panel")]]))
+        return
+    if not ctx.is_panel_admin(uid):
+        await message.answer(at(lang, "panel_no_access", user_id=uid))
+        return
+    await send_panel(message, ctx, uid)
+
+
+# ---------- buyurtma holati (guruhdagi tugmalar) ----------
 @router.callback_query(OrderCb.filter())
 async def cb_order(call: CallbackQuery, callback_data: OrderCb, ctx: AppContext) -> None:
     lang = ctx.settings.admin_lang
     if not ctx.is_admin(call.from_user.id, call.message.chat.id if call.message else None):
         await call.answer(at(lang, "not_admin"), show_alert=True)
         return
-
     if not isinstance(call.message, Message):
         await call.answer(at(lang, "status_stale"), show_alert=True)  # 48 soatdan eski xabar
         return
-    order = await ctx.db.get_order(callback_data.id)
-    if order is None:
-        await call.answer("?", show_alert=True)
-        return
-    action = callback_data.action
 
-    if action == "ask_cancel":
-        if order["status"] in ("new", "accepted"):
+    action = callback_data.action
+    if action in ("ask_cancel", "back"):
+        order = await ctx.db.get_order(callback_data.id)
+        if order is None:
+            await call.answer("?", show_alert=True)
+            return
+        if action == "back":
+            await call.message.edit_reply_markup(reply_markup=admin_keyboard(ctx, order))
+            await call.answer()
+        elif order["status"] in ("new", "accepted"):
             await call.message.edit_reply_markup(reply_markup=cancel_confirm_keyboard(ctx, order["id"]))
             await call.answer(at(lang, "confirm_cancel", id=order["id"]))
         else:
             await call.answer(at(lang, "status_stale"), show_alert=True)
         return
-    if action == "back":
-        await call.message.edit_reply_markup(reply_markup=admin_keyboard(ctx, order))
-        await call.answer()
-        return
 
-    if not can_transition(order, action) or not await ctx.db.update_status(order["id"], order["status"], action):
+    success, order = await apply_status(ctx, callback_data.id, action)
+    if order is None:
+        await call.answer("?", show_alert=True)
+        return
+    if not success:
         await call.answer(at(lang, "status_stale"), show_alert=True)
-        order = await ctx.db.get_order(order["id"])
         await _refresh(call, ctx, order, None)
         return
-
-    order = await ctx.db.get_order(order["id"])
     await _refresh(call, ctx, order, call.from_user.full_name)
     await call.answer(at(lang, "status_changed", status=t(lang, "st_" + order["status"])))
     await notify_user_status(ctx, order)
@@ -137,28 +179,15 @@ async def cmd_stats(message: Message, ctx: AppContext) -> None:
     ))
 
 
-@admin_cmds.message(Command("reload"))
-async def cmd_reload(message: Message, ctx: AppContext) -> None:
-    lang = ctx.settings.admin_lang
-    try:
-        fresh = Catalog.load(DATA_DIR)
-    except Exception as e:  # noqa: BLE001 — xatoni adminga ko'rsatamiz
-        await message.answer(at(lang, "reload_error", error=escape(str(e))))
-        return
-    fresh.stoplist = await ctx.db.stoplist()
-    ctx.catalog = fresh
-    await message.answer(at(lang, "reloaded", cats=len(fresh.categories), products=len(fresh.products)))
-
-
 # ---------- stop-list ----------
 def _stop_home_kb(ctx: AppContext) -> InlineKeyboardMarkup:
     lang = ctx.settings.admin_lang
     rows, row = [], []
     for c in ctx.catalog.categories:
-        stopped = sum(1 for p in ctx.catalog.products.values()
-                      if p["category"] == c["id"] and p["id"] in ctx.catalog.stoplist)
-        label = c["name"].get(lang, c["id"]) + (f" (⛔{stopped})" if stopped else "")
-        row.append(InlineKeyboardButton(text=label, callback_data=f"sl:c:{c['id']}"))
+        stopped = sum(1 for p in ctx.catalog.products.values() if p["category"] == c["id"] and not p["available"])
+        label = c["name"].get(lang) or c["id"]
+        row.append(InlineKeyboardButton(text=label + (f" (⛔{stopped})" if stopped else ""),
+                                        callback_data=f"sl:c:{c['id']}"))
         if len(row) == 2:
             rows.append(row)
             row = []
@@ -173,18 +202,11 @@ def _stop_cat_kb(ctx: AppContext, cat_id: str) -> InlineKeyboardMarkup:
     for p in ctx.catalog.products.values():
         if p["category"] != cat_id:
             continue
-        mark = "⛔" if p["id"] in ctx.catalog.stoplist else "✅"
-        rows.append([InlineKeyboardButton(text=f"{mark} {p['name'].get(lang, p['id'])}",
+        mark = "✅" if p["available"] else "⛔"
+        rows.append([InlineKeyboardButton(text=f"{mark} {p['name'].get(lang) or p['id']}",
                                           callback_data=f"sl:t:{p['id']}")])
     rows.append([InlineKeyboardButton(text=at(lang, "btn_back"), callback_data="sl:home")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
-
-
-def _cat_name(ctx: AppContext, cat_id: str) -> str:
-    for c in ctx.catalog.categories:
-        if c["id"] == cat_id:
-            return c["name"].get(ctx.settings.admin_lang, cat_id)
-    return cat_id
 
 
 @admin_cmds.message(Command("stoplist", "stop"))
@@ -199,21 +221,18 @@ async def cb_stoplist(call: CallbackQuery, ctx: AppContext) -> None:
     value = rest[0] if rest else ""
     if kind == "home":
         await call.message.edit_text(at(lang, "stoplist_title"), reply_markup=_stop_home_kb(ctx))
-    elif kind == "c":
-        await call.message.edit_text(at(lang, "stoplist_cat", cat=escape(_cat_name(ctx, value))),
-                                     reply_markup=_stop_cat_kb(ctx, value))
+    elif kind == "c" and ctx.catalog.category(value):
+        name = ctx.catalog.category(value)["name"].get(lang) or value
+        await call.message.edit_text(at(lang, "stoplist_cat", cat=escape(name)), reply_markup=_stop_cat_kb(ctx, value))
     elif kind == "t" and value in ctx.catalog.products:
-        stopped = await ctx.db.toggle_stop(value)
-        if stopped:
-            ctx.catalog.stoplist.add(value)
-        else:
-            ctx.catalog.stoplist.discard(value)
-        cat_id = ctx.catalog.products[value]["category"]
-        await call.message.edit_reply_markup(reply_markup=_stop_cat_kb(ctx, cat_id))
+        product = ctx.catalog.products[value]
+        await ctx.db.update_product(value, {"available": not product["available"]})
+        await ctx.reload_catalog()
+        await call.message.edit_reply_markup(reply_markup=_stop_cat_kb(ctx, product["category"]))
     await call.answer()
 
 
-# ---------- reklama ----------
+# ---------- reklama (xabarga reply qilib) ----------
 @admin_cmds.message(Command("broadcast"))
 async def cmd_broadcast(message: Message, ctx: AppContext) -> None:
     lang = ctx.settings.admin_lang
@@ -221,27 +240,14 @@ async def cmd_broadcast(message: Message, ctx: AppContext) -> None:
     if src is None:
         await message.answer(at(lang, "broadcast_help"))
         return
-    user_ids = await ctx.db.all_user_ids()
-    await message.answer(at(lang, "broadcast_start", count=len(user_ids)))
-    spawn(_broadcast(ctx, message, src, user_ids))
 
+    async def send(uid: int, _lang: str) -> None:
+        await ctx.bot.copy_message(uid, src.chat.id, src.message_id)
 
-async def _broadcast(ctx: AppContext, report_to: Message, src: Message, user_ids: list[int]) -> None:
-    ok = fail = 0
-    for uid in user_ids:
-        for _ in range(3):
-            try:
-                await ctx.bot.copy_message(uid, src.chat.id, src.message_id)
-                ok += 1
-                break
-            except TelegramRetryAfter as e:
-                await asyncio.sleep(e.retry_after + 0.5)
-            except (TelegramForbiddenError, TelegramBadRequest):
-                fail += 1
-                break
-            except Exception:
-                log.exception("Broadcast xatosi")
-                fail += 1
-                break
-        await asyncio.sleep(0.05)  # Telegram limiti: ~30 xabar/soniya
-    await report_to.answer(at(ctx.settings.admin_lang, "broadcast_done", ok=ok, fail=fail))
+    async def report(st: dict[str, Any]) -> None:
+        await message.answer(at(lang, "broadcast_done", ok=st["ok"], fail=st["fail"]))
+
+    if not start_broadcast(ctx, send, report):
+        await message.answer(at(lang, "broadcast_running"))
+        return
+    await message.answer(at(lang, "broadcast_start", count=len(await ctx.db.all_user_ids())))

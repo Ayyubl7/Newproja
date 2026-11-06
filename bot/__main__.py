@@ -23,6 +23,7 @@ from .config import DATA_DIR, Settings, load_settings
 from .context import AppContext
 from .db import Database
 from .handlers import build_router
+from .seed import ensure_seeded
 from .web import build_web_app
 
 log = logging.getLogger("ayva")
@@ -34,10 +35,10 @@ async def setup_bot_ui(bot: Bot, settings: Settings) -> None:
     if settings.admin_chat_id:
         try:
             await bot.set_my_commands([
+                BotCommand(command="panel", description="Admin panel"),
                 BotCommand(command="active", description="Faol buyurtmalar"),
                 BotCommand(command="stats", description="Statistika"),
                 BotCommand(command="stoplist", description="Stop-list"),
-                BotCommand(command="reload", description="Menyuni qayta yuklash"),
                 BotCommand(command="broadcast", description="Reklama (reply qilib)"),
                 BotCommand(command="admin", description="Yordam"),
             ], scope=BotCommandScopeChat(chat_id=settings.admin_chat_id))
@@ -66,9 +67,9 @@ async def main() -> None:
     bot = Bot(settings.bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     db = Database(settings.db_path)
     await db.connect()
-    catalog = Catalog.load(DATA_DIR)
-    catalog.stoplist = await db.stoplist()
-    ctx = AppContext(settings=settings, bot=bot, db=db, catalog=catalog)
+    await ensure_seeded(db, DATA_DIR)
+    ctx = AppContext(settings=settings, bot=bot, db=db, catalog=await Catalog.from_db(db))
+    await ctx.reload_admins()
 
     dp = Dispatcher()
     dp["ctx"] = ctx
