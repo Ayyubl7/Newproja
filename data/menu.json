@@ -1,0 +1,138 @@
+{
+  "_izoh": "NAMUNA MENYU. Nomlar, narxlar va rasmlarni o'zingiznikiga almashtiring. Narxlar so'mda. image bo'sh bo'lsa, kategoriya rasmi ko'rsatiladi. badge: hit | new | spicy yoki bo'sh.",
+  "categories": [
+    { "id": "combo",   "icon": "combo",  "name": { "uz": "Kombo",       "ru": "Комбо" } },
+    { "id": "burgers", "icon": "burger", "name": { "uz": "Burgerlar",   "ru": "Бургеры" } },
+    { "id": "hotdogs", "icon": "hotdog", "name": { "uz": "Hot-doglar",  "ru": "Хот-доги" } },
+    { "id": "snacks",  "icon": "fries",  "name": { "uz": "Sneklar",     "ru": "Снеки" } },
+    { "id": "sauces",  "icon": "sauce",  "name": { "uz": "Souslar",     "ru": "Соусы" } },
+    { "id": "drinks",  "icon": "drink",  "name": { "uz": "Ichimliklar", "ru": "Напитки" } }
+  ],
+  "products": [
+    {
+      "id": "combo-ayva", "category": "combo", "price": 69000, "badge": "new", "image": "",
+      "name": { "uz": "Ayva Kombo", "ru": "Айва Комбо" },
+      "description": { "uz": "Ayva Special + kartoshka fri + ichimlik 0,5 L", "ru": "Айва Спешл + картофель фри + напиток 0,5 л" }
+    },
+    {
+      "id": "combo-classic", "category": "combo", "price": 45000, "badge": "", "image": "",
+      "name": { "uz": "Klassik kombo", "ru": "Классик комбо" },
+      "description": { "uz": "Klassik burger + kartoshka fri + ichimlik 0,5 L", "ru": "Классический бургер + картофель фри + напиток 0,5 л" }
+    },
+    {
+      "id": "combo-friends", "category": "combo", "price": 129000, "badge": "", "image": "",
+      "name": { "uz": "Do'stlar kombosi", "ru": "Комбо для друзей" },
+      "description": { "uz": "3 ta burger + 2 ta katta fri + 3 ta ichimlik", "ru": "3 бургера + 2 большие фри + 3 напитка" }
+    },
+    {
+      "id": "ayva-special", "category": "burgers", "price": 55000, "badge": "hit", "image": "",
+      "name": { "uz": "Ayva Special", "ru": "Айва Спешл" },
+      "description": { "uz": "Ikki qavat mol go'shti, cheddar, karamellangan piyoz va firma ayva sousi", "ru": "Две говяжьи котлеты, чеддер, карамелизированный лук и фирменный айвовый соус" }
+    },
+    {
+      "id": "classic", "category": "burgers", "price": 32000, "badge": "", "image": "",
+      "name": { "uz": "Klassik burger", "ru": "Классический бургер" },
+      "description": { "uz": "Mol go'shti kotleti, pomidor, tuzlangan bodring, salat bargi, maxsus sous", "ru": "Говяжья котлета, томат, маринованный огурец, салат, фирменный соус" }
+    },
+    {
+      "id": "cheeseburger", "category": "burgers", "price": 36000, "badge": "", "image": "",
+      "name": { "uz": "Chizburger", "ru": "Чизбургер" },
+      "description": { "uz": "Mol go'shti kotleti, ikki qavat cheddar, piyoz, ketchup va xantal", "ru": "Говяжья котлета, двойной чеддер, лук, кетчуп и горчица" }
+    },
+    {
+      "id": "double-cheese", "category": "burgers", "price": 49000, "badge": "", "image": "",
+      "name": { "uz": "Dabl chizburger", "ru": "Дабл чизбургер" },
+      "description": { "uz": "Ikki kotlet, ikki qavat cheddar — haqiqiy ochlar uchun", "ru": "Две котлеты, двойной чеддер — для настоящего голода" }
+    },
+    {
+      "id": "bbq", "category": "burgers", "price": 45000, "badge": "", "image": "",
+      "name": { "uz": "BBQ burger", "ru": "BBQ бургер" },
+      "description": { "uz": "Mol go'shti, dudlangan go'sht bo'laklari, BBQ sous, piyoz halqalari", "ru": "Говядина, копчёное мясо, соус BBQ, луковые кольца" }
+    },
+    {
+      "id": "chicken", "category": "burgers", "price": 33000, "badge": "", "image": "",
+      "name": { "uz": "Chicken burger", "ru": "Чикен бургер" },
+      "description": { "uz": "Qarsildoq tovuq filesi, salat bargi, pomidor, sarimsoqli sous", "ru": "Хрустящее куриное филе, салат, томат, чесночный соус" }
+    },
+    {
+      "id": "spicy", "category": "burgers", "price": 39000, "badge": "spicy", "image": "",
+      "name": { "uz": "Achchiq burger", "ru": "Острый бургер" },
+      "description": { "uz": "Mol go'shti, jalapeno, pishloq, achchiq chili sous", "ru": "Говядина, халапеньо, сыр, острый соус чили" }
+    },
+    {
+      "id": "hotdog-classic", "category": "hotdogs", "price": 18000, "badge": "", "image": "",
+      "name": { "uz": "Klassik hot-dog", "ru": "Классический хот-дог" },
+      "description": { "uz": "Mol go'shti sosiskasi, tuzlangan bodring, qovurilgan piyoz, souslar", "ru": "Говяжья сосиска, маринованный огурец, жареный лук, соусы" }
+    },
+    {
+      "id": "hotdog-french", "category": "hotdogs", "price": 20000, "badge": "", "image": "",
+      "name": { "uz": "Fransuzcha hot-dog", "ru": "Французский хот-дог" },
+      "description": { "uz": "Qarsildoq bagetda sosiska va pishloqli sous", "ru": "Сосиска в хрустящем багете с сырным соусом" }
+    },
+    {
+      "id": "fries", "category": "snacks", "price": 15000, "badge": "hit", "image": "",
+      "name": { "uz": "Kartoshka fri", "ru": "Картофель фри" },
+      "description": { "uz": "Oltin rangli, qarsildoq, tuzlangan", "ru": "Золотистый, хрустящий, подсоленный" }
+    },
+    {
+      "id": "village-fries", "category": "snacks", "price": 17000, "badge": "", "image": "",
+      "name": { "uz": "Dehqoncha kartoshka", "ru": "Картофель по-деревенски" },
+      "description": { "uz": "Ziravorli kartoshka bo'laklari", "ru": "Картофельные дольки со специями" }
+    },
+    {
+      "id": "nuggets", "category": "snacks", "price": 22000, "badge": "", "image": "",
+      "name": { "uz": "Naggetslar, 6 dona", "ru": "Наггетсы, 6 шт" },
+      "description": { "uz": "Tovuq filesidan, sous bilan", "ru": "Из куриного филе, с соусом" }
+    },
+    {
+      "id": "onion-rings", "category": "snacks", "price": 18000, "badge": "", "image": "",
+      "name": { "uz": "Piyoz halqalari", "ru": "Луковые кольца" },
+      "description": { "uz": "Qarsildoq xamirdagi piyoz", "ru": "Лук в хрустящем кляре" }
+    },
+    {
+      "id": "sauce-ayva", "category": "sauces", "price": 5000, "badge": "", "image": "",
+      "name": { "uz": "Ayva sousi", "ru": "Айвовый соус" },
+      "description": { "uz": "Firma sousimiz: shirin-nordon ayva", "ru": "Наш фирменный: сладко-кислая айва" }
+    },
+    {
+      "id": "sauce-cheese", "category": "sauces", "price": 4000, "badge": "", "image": "",
+      "name": { "uz": "Pishloqli sous", "ru": "Сырный соус" },
+      "description": { "uz": "", "ru": "" }
+    },
+    {
+      "id": "sauce-garlic", "category": "sauces", "price": 3000, "badge": "", "image": "",
+      "name": { "uz": "Sarimsoqli sous", "ru": "Чесночный соус" },
+      "description": { "uz": "", "ru": "" }
+    },
+    {
+      "id": "sauce-ketchup", "category": "sauces", "price": 3000, "badge": "", "image": "",
+      "name": { "uz": "Ketchup", "ru": "Кетчуп" },
+      "description": { "uz": "", "ru": "" }
+    },
+    {
+      "id": "cola", "category": "drinks", "price": 10000, "badge": "", "image": "",
+      "name": { "uz": "Coca-Cola 0,5 L", "ru": "Coca-Cola 0,5 л" },
+      "description": { "uz": "", "ru": "" }
+    },
+    {
+      "id": "fanta", "category": "drinks", "price": 10000, "badge": "", "image": "",
+      "name": { "uz": "Fanta 0,5 L", "ru": "Fanta 0,5 л" },
+      "description": { "uz": "", "ru": "" }
+    },
+    {
+      "id": "mojito", "category": "drinks", "price": 18000, "badge": "new", "image": "",
+      "name": { "uz": "Moxito (alkogolsiz)", "ru": "Мохито (безалкогольный)" },
+      "description": { "uz": "Laym, yalpiz, muz", "ru": "Лайм, мята, лёд" }
+    },
+    {
+      "id": "ayran", "category": "drinks", "price": 7000, "badge": "", "image": "",
+      "name": { "uz": "Ayron", "ru": "Айран" },
+      "description": { "uz": "", "ru": "" }
+    },
+    {
+      "id": "water", "category": "drinks", "price": 4000, "badge": "", "image": "",
+      "name": { "uz": "Suv 0,5 L", "ru": "Вода 0,5 л" },
+      "description": { "uz": "Gazsiz", "ru": "Без газа" }
+    }
+  ]
+}

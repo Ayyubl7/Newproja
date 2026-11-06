@@ -1,0 +1,36 @@
+{
+  "name": "Ayva Burgers",
+  "tagline": {
+    "uz": "Shirali burgerlar — eshigingizgacha",
+    "ru": "Сочные бургеры — до вашей двери"
+  },
+  "about": {
+    "uz": "Ayva Burgers — yangi mol go'shti, har kuni yopiladigan bulochka va o'zimizning ayva sousimiz. Har bir burger buyurtmadan keyin tayyorlanadi.",
+    "ru": "Ayva Burgers — свежая говядина, булочки собственной выпечки и наш фирменный айвовый соус. Каждый бургер готовим после заказа."
+  },
+  "phone": "+998 90 000 00 00",
+  "support_username": "",
+  "instagram": "",
+  "address": {
+    "uz": "Toshkent sh. (manzilni shu yerga yozing)",
+    "ru": "г. Ташкент (впишите адрес сюда)"
+  },
+  "location": null,
+  "hours": { "open": "10:00", "close": "02:00" },
+  "delivery": {
+    "enabled": true,
+    "fee": 10000,
+    "free_from": 150000,
+    "min_order": 30000,
+    "eta": "40–60"
+  },
+  "pickup": {
+    "enabled": true,
+    "eta": "15–20"
+  },
+  "payments": {
+    "cash": true,
+    "click": false,
+    "payme": false
+  }
+}

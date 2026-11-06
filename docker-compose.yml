@@ -1,0 +1,33 @@
+# VPS uchun: bot + Caddy (avtomatik HTTPS). Ishga tushirish: docker compose up -d --build
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PUBLIC_URL: https://${DOMAIN}
+      DB_PATH: /data/ayva.db
+      PORT: "8080"
+    volumes:
+      - ayva-data:/data
+      # Menyu va rasmlarni qayta build qilmasdan o'zgartirish uchun (keyin botda /reload)
+      - ./data/menu.json:/app/data/menu.json:ro
+      - ./data/store.json:/app/data/store.json:ro
+      - ./webapp/img/products:/app/webapp/img/products:ro
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [bot]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  ayva-data:
+  caddy-data:

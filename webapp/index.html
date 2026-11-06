@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF8EE">
+  <title>Ayva Burgers</title>
+  <link rel="icon" href="/static/img/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=1">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app" class="app">
+    <!-- Yuklanish holati -->
+    <section id="view-loading" class="view is-active">
+      <div class="loading">
+        <img src="/static/img/logo.svg" alt="" class="loading__logo">
+        <div class="loading__name">Ayva Burgers</div>
+        <div class="skeleton-grid">
+          <div class="skeleton"></div><div class="skeleton"></div>
+          <div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </div>
+    </section>
+    <section id="view-error" class="view"></section>
+    <section id="view-menu" class="view"></section>
+    <section id="view-cart" class="view"></section>
+    <section id="view-checkout" class="view"></section>
+    <section id="view-success" class="view"></section>
+  </div>
+
+  <div id="bottom-bar" class="bottom-bar" hidden></div>
+  <div id="sheet" class="sheet" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="/static/app.js?v=1"></script>
+</body>
+</html>

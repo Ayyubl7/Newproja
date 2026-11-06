@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <ellipse cx="60" cy="106" rx="50" ry="6" fill="#3A1E05" opacity=".14"/>
+  <g transform="translate(58 4) scale(.62)"><use href="#d"/></g>
+  <g transform="translate(-6 16) scale(.62)"><use href="#f"/></g>
+  <g transform="translate(18 34) scale(.66)"><use href="#b"/></g>
+  <defs>
+    <g id="d">
+      <rect x="62" y="6" width="6" height="34" rx="3" fill="#E5483A" transform="rotate(14 65 23)"/>
+      <path d="M37 38h46l-6 63c-.3 2.8-2.6 5-5.4 5H48.4c-2.8 0-5.1-2.2-5.4-5z" fill="#fff"/>
+      <path d="M39.5 62h41l-2.2 22H41.7z" fill="#F4AE16"/>
+      <rect x="33" y="31" width="54" height="9" rx="4.5" fill="#3A2A1C"/>
+    </g>
+    <g id="f">
+      <g stroke="#E2A521" stroke-width="1.5">
+        <rect x="45" y="17" width="9" height="52" rx="2" fill="#FFD54F" transform="rotate(-6 50 44)"/>
+        <rect x="56" y="14" width="9" height="56" rx="2" fill="#FFCF3A"/>
+        <rect x="67" y="18" width="9" height="52" rx="2" fill="#FFD54F" transform="rotate(7 71 44)"/>
+        <rect x="36" y="26" width="9" height="46" rx="2" fill="#FFE07A" transform="rotate(-12 40 50)"/>
+        <rect x="76" y="27" width="9" height="46" rx="2" fill="#FFE07A" transform="rotate(13 80 50)"/>
+      </g>
+      <path d="M28 52c10 7 54 7 64 0l-8 50c-.5 2.5-2.6 4-5 4H41c-2.4 0-4.5-1.5-5-4z" fill="#E23B2E"/>
+      <circle cx="60" cy="80" r="10" fill="#FFC928"/>
+    </g>
+    <g id="b">
+      <path d="M20 84h80c0 9-5 15-13 15H33c-8 0-13-6-13-15z" fill="#E48E25"/>
+      <rect x="17" y="71" width="86" height="14" rx="7" fill="#6B381C"/>
+      <path d="M17 67h86v5H90l-6 9-6-9H45l-6 8-6-8H17z" fill="#FFC928"/>
+      <rect x="21" y="63" width="78" height="6" rx="3" fill="#E5483A"/>
+      <path d="M15 61c4 5 8 5 12 0s8-5 12 0 8 5 12 0 8-5 12 0 8 5 12 0 8-5 12 0 8 5 12 0v4H15z" fill="#78C043"/>
+      <path d="M18 57c0-24 19-38 42-38s42 14 42 38c0 3-2 5-5 5H23c-3 0-5-2-5-5z" fill="#F0A53C"/>
+      <g fill="#FFF3D6">
+        <ellipse cx="44" cy="33" rx="3.2" ry="1.6" transform="rotate(-25 44 33)"/>
+        <ellipse cx="60" cy="28" rx="3.2" ry="1.6"/>
+        <ellipse cx="76" cy="33" rx="3.2" ry="1.6" transform="rotate(25 76 33)"/>
+        <ellipse cx="52" cy="43" rx="3.2" ry="1.6"/>
+        <ellipse cx="68" cy="43" rx="3.2" ry="1.6"/>
+      </g>
+    </g>
+  </defs>
+</svg>

@@ -1,0 +1,186 @@
+"""Bot suhbatini Telegram'siz sinash: so'rovlar soxta sessiyada yoziladi."""
+import asyncio
+from datetime import datetime, timezone
+from pathlib import Path
+
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.base import BaseSession
+from aiogram.enums import ParseMode
+from aiogram.methods import TelegramMethod
+from aiogram.types import CallbackQuery, Chat, Contact, Message, Update, User
+
+from bot.catalog import Catalog
+from bot.config import DATA_DIR
+from bot.context import AppContext
+from bot.db import Database
+from bot.handlers import build_router
+from bot.orders import OrderCb, announce_new_order
+
+from .test_api import TOKEN, make_settings
+
+ADMIN_CHAT = -100123
+USER_ID = 42
+
+
+class FakeSession(BaseSession):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: list[TelegramMethod] = []
+        self._mid = 500
+
+    async def make_request(self, bot, method, timeout=None):  # noqa: ANN001
+        self.calls.append(method)
+        if method.__returning__ is Message:
+            self._mid += 1
+            chat_id = getattr(method, "chat_id", USER_ID)
+            return Message(message_id=self._mid, date=datetime.now(timezone.utc),
+                           chat=Chat(id=chat_id, type="private" if chat_id > 0 else "supergroup"),
+                           text=getattr(method, "text", None))
+        return True
+
+    async def stream_content(self, *a, **kw):  # pragma: no cover
+        raise NotImplementedError
+
+    async def close(self) -> None:
+        pass
+
+    def names(self) -> list[str]:
+        return [type(c).__name__ for c in self.calls]
+
+
+def user(uid=USER_ID):
+    return User(id=uid, is_bot=False, first_name="Ali", username="ali")
+
+
+def msg(text=None, contact=None, chat_id=USER_ID, uid=USER_ID):
+    chat = Chat(id=chat_id, type="private" if chat_id > 0 else "supergroup")
+    return Message(message_id=1, date=datetime.now(timezone.utc), chat=chat, from_user=user(uid),
+                   text=text, contact=contact)
+
+
+async def setup(tmp: Path):
+    session = FakeSession()
+    bot = Bot(TOKEN, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    settings = make_settings(tmp, admin_chat_id=ADMIN_CHAT)
+    db = Database(settings.db_path)
+    await db.connect()
+    catalog = Catalog.load(DATA_DIR)
+    ctx = AppContext(settings=settings, bot=bot, db=db, catalog=catalog)
+    dp = _dispatcher()
+    dp["ctx"] = ctx
+    return dp, bot, session, ctx
+
+
+_DP: Dispatcher | None = None
+
+
+def _dispatcher() -> Dispatcher:
+    # Routerlar modul darajasida yagona — bitta Dispatcher'ga faqat bir marta ulanadi
+    global _DP
+    if _DP is None:
+        _DP = Dispatcher()
+        _DP.include_router(build_router())
+    return _DP
+
+
+async def feed(dp, bot, **kw):
+    await dp.feed_update(bot, Update(update_id=1, **kw))
+
+
+def test_onboarding_flow(tmp_path):
+    async def go():
+        dp, bot, session, ctx = await setup(tmp_path)
+        try:
+            await feed(dp, bot, message=msg("/start"))
+            assert session.calls[-1].text.startswith("🇺🇿 Tilni tanlang")
+
+            session.calls.clear()
+            cb = CallbackQuery(id="1", from_user=user(), chat_instance="x", data="lang:ru",
+                               message=msg("lang"))
+            await feed(dp, bot, callback_query=cb)
+            assert "SetChatMenuButton" in session.names()
+            assert (await ctx.db.get_user(USER_ID))["lang"] == "ru"
+            assert "номер телефона" in session.calls[-1].text
+
+            session.calls.clear()
+            await feed(dp, bot, message=msg(contact=Contact(phone_number="998901112233", first_name="Ali",
+                                                            user_id=USER_ID)))
+            assert (await ctx.db.get_user(USER_ID))["phone"] == "+998901112233"
+            last = session.calls[-1]
+            assert last.reply_markup.inline_keyboard[0][0].web_app.url == "https://example.com/?lang=ru"
+
+            # boshqa odamning kontakti qabul qilinmaydi
+            session.calls.clear()
+            await feed(dp, bot, message=msg(contact=Contact(phone_number="1", first_name="X", user_id=999)))
+            assert (await ctx.db.get_user(USER_ID))["phone"] == "+998901112233"
+
+            session.calls.clear()
+            await feed(dp, bot, message=msg("📦 Мои заказы"))
+            assert "нет заказов" in session.calls[0].text
+
+            session.calls.clear()
+            await feed(dp, bot, message=msg("ℹ️ О нас"))
+            assert "Ayva Burgers" in session.calls[0].text
+        finally:
+            await ctx.db.close()
+    asyncio.run(go())
+
+
+def test_admin_order_lifecycle(tmp_path):
+    async def go():
+        dp, bot, session, ctx = await setup(tmp_path)
+        try:
+            await ctx.db.upsert_user(USER_ID, "Ali", "ali")
+            oid = await ctx.db.create_order({
+                "user_id": USER_ID, "items": [{"id": "classic", "name": {"uz": "Klassik", "ru": "Классик"},
+                                               "price": 32000, "qty": 1}],
+                "subtotal": 32000, "delivery_fee": 10000, "total": 42000, "type": "delivery",
+                "address": "Chilonzor", "lat": None, "lon": None, "phone": "+998901112233", "name": "Ali",
+                "comment": None, "payment": "cash", "lang": "uz",
+            })
+            await announce_new_order(ctx, oid)
+            to_admin = [c for c in session.calls if getattr(c, "chat_id", None) == ADMIN_CHAT]
+            assert to_admin and "Yangi buyurtma #1001" in to_admin[0].text
+            assert (await ctx.db.get_order(oid))["admin_message_id"] is not None
+            assert any(getattr(c, "chat_id", None) == USER_ID and "#1001" in c.text for c in session.calls)
+
+            def press(action, uid=7, chat=ADMIN_CHAT):
+                m = msg("order", chat_id=chat, uid=uid)
+                return CallbackQuery(id="2", from_user=user(uid), chat_instance="y",
+                                     data=OrderCb(id=oid, action=action).pack(), message=m)
+
+            # begona odam (shaxsiy chatdan) bosolmaydi
+            session.calls.clear()
+            await feed(dp, bot, callback_query=press("accepted", uid=99, chat=99))
+            assert (await ctx.db.get_order(oid))["status"] == "new"
+
+            for action in ("accepted", "on_the_way", "done"):
+                session.calls.clear()
+                await feed(dp, bot, callback_query=press(action))
+                assert (await ctx.db.get_order(oid))["status"] == action
+                notify = [c for c in session.calls if type(c).__name__ == "SendMessage"]
+                assert notify and notify[0].chat_id == USER_ID
+
+            # yakunlangan buyurtmani bekor qilib bo'lmaydi
+            await feed(dp, bot, callback_query=press("cancelled"))
+            assert (await ctx.db.get_order(oid))["status"] == "done"
+
+            # admin buyruqlari
+            session.calls.clear()
+            await feed(dp, bot, message=msg("/stats", chat_id=ADMIN_CHAT, uid=7))
+            assert "Statistika" in session.calls[-1].text
+            await feed(dp, bot, message=msg("/stoplist", chat_id=ADMIN_CHAT, uid=7))
+            assert "Stop-list" in session.calls[-1].text
+            cb = CallbackQuery(id="3", from_user=user(7), chat_instance="z", data="sl:t:classic",
+                               message=msg("sl", chat_id=ADMIN_CHAT, uid=7))
+            await feed(dp, bot, callback_query=cb)
+            assert "classic" in ctx.catalog.stoplist and "classic" in await ctx.db.stoplist()
+
+            # oddiy foydalanuvchi /stats yoza olmaydi
+            session.calls.clear()
+            await feed(dp, bot, message=msg("/stats"))
+            assert all("Statistika" not in (getattr(c, "text", "") or "") for c in session.calls)
+        finally:
+            await ctx.db.close()
+    asyncio.run(go())
