@@ -27,7 +27,7 @@
       st_new: '🆕 Yangi', st_accepted: '👨‍🍳 Tayyorlanmoqda', st_on_the_way: "🚗 Yo'lda", st_ready: '🛍 Tayyor', st_done: '✅ Yakunlandi', st_cancelled: '❌ Bekor',
       act_accepted: '✅ Qabul qilish', act_on_the_way: "🚗 Yo'lga chiqdi", act_ready: '🛍 Tayyor', act_done: '🏁 Yakunlash', act_cancel: 'Bekor',
       confirm_cancel: 'Buyurtma #{id} bekor qilinsinmi? Mijozga xabar boradi.',
-      type_delivery: 'Yetkazib berish', type_pickup: 'Olib ketish', pay_cash: 'Naqd', pay_click: 'Click', pay_payme: 'Payme',
+      type_delivery: 'Yetkazib berish', type_pickup: 'Olib ketish', pay_cash: 'Naqd',
       map: 'Xarita', delivery_fee: 'Yetkazish', total: 'Jami', stale: "Holat allaqachon o'zgargan — ro'yxat yangilandi",
       // menyu
       categories: 'Kategoriyalar', reorder: 'Tartiblash', reorder_done: 'Tayyor', new_product: 'Mahsulot',
@@ -78,7 +78,6 @@
       hours: 'Ish vaqti', f_hours: 'Ish vaqti', f_open: 'Ochilish', f_close: 'Yopilish', hours_hint: "Yarim tundan o'tishi mumkin (masalan 10:00–02:00). 24 soat ishlasa, ikkalasiga bir xil vaqt qo'ying.",
       delivery: 'Yetkazib berish', f_delivery: 'Yetkazib berish', delivery_on: 'Yetkazib berish bor', f_fee: "Yetkazish narxi (so'm)", f_free_from: "Shu summadan bepul (so'm)", free_hint: "0 — har doim pullik",
       f_min_order: "Minimal buyurtma (so'm)", f_eta: 'Taxminiy vaqt (daqiqa)', pickup: 'Olib ketish', pickup_on: 'Olib ketish bor',
-      payments: "To'lov usullari", f_payments: "To'lov", cash: 'Naqd pul', soon: 'Tez orada',
       unsaved: "Saqlanmagan o'zgarishlar bor", discard_confirm: "O'zgarishlar saqlanmasin?",
       admins: 'Adminlar', owner: 'Egasi', owners_hint: "Egalar .env faylidagi ADMIN_IDS orqali belgilanadi.",
       add_admin: "Admin qo'shish", f_user_id: 'Telegram ID', f_admin_name: 'Ismi (izoh uchun)',
@@ -94,7 +93,7 @@
       e_bad_range: "tugash sanasi boshlanishidan oldin bo'lmasin", e_title_or_image: "sarlavha yoki rasm kerak",
       e_category_not_empty: "Kategoriyada mahsulotlar bor — avval ularni boshqa kategoriyaga o'tkazing yoki o'chiring",
       e_bad_image: "Rasmni o'qib bo'lmadi (JPG, PNG yoki WebP yuklang)", e_too_large: 'Rasm juda katta (12 MB gacha)',
-      e_need_one_type: "yetkazib berish yoki olib ketishdan biri yoqilgan bo'lishi kerak", e_need_one_payment: "kamida bitta to'lov usuli kerak",
+      e_need_one_type: "yetkazib berish yoki olib ketishdan biri yoqilgan bo'lishi kerak",
       e_owner_only: "Bu amal faqat egasi uchun", e_broadcast_running: 'Boshqa xabar yuborilmoqda', e_stale: "Holat allaqachon o'zgargan",
       e_unauthorized: 'Qaytadan kiring', e_forbidden: "Ruxsat yo'q", e_csrf: 'Sahifani yangilang',
       e_role_forbidden: "Bu amal uchun ruxsatingiz yo'q", e_already_owner: 'bu odam allaqachon egasi',
@@ -104,6 +103,18 @@
       cashier_menu_note: "🔒 Kassir rejimi: faqat mahsulot sotuvda bor/yo'qligini o'zgartira olasiz.",
       cashier_settings_note: "🔒 Kassir rejimi: menyu, narx, aksiya va sozlamalarni administrator o'zgartiradi.",
       role_changed: '✅ Rol o\'zgartirildi',
+      branches: 'Filiallar', branches_hint: "Har bir filialning ish vaqti, manzili va buyurtmalar keladigan Telegram guruhi.",
+      new_branch: 'Yangi filial', edit_branch: 'Filialni tahrirlash', no_branches: "Filial yo'q — buyurtmalar umumiy guruhga keladi",
+      f_coords: 'Xaritadagi nuqta', coords_ph: '40.5287, 70.9420 yoki xarita havolasi',
+      coords_hint: "Yetkazib berishda mijozga eng yaqin filial tanlanadi. Google yoki Yandex xaritadagi nuqta havolasini qo'yish mumkin.",
+      f_chat_id: 'Buyurtmalar guruhi (chat ID)', chat_id_hint: "Botni filial xodimlari guruhiga qo'shing va guruhda /id yozing. Bo'sh qolsa — buyurtmalar umumiy guruhga keladi.",
+      branch_active_sub: "O'chirilsa mijozlar bu filialni ko'rmaydi", group_own: 'Alohida guruh', group_main: 'Umumiy guruh',
+      open_now: 'Ochiq', closed_now: 'Yopiq', hours_24: '24/7', inactive: "O'chirilgan",
+      confirm_delete_branch: '«{name}» filiali o\'chirilsinmi?',
+      e_branch_has_orders: 'Filialda faol buyurtmalar bor — avval ularni yakunlang',
+      all_branches: 'Barcha filiallar',
+      rating: 'Mijozlar bahosi', rating_n: '{n} ta baho', no_ratings: "Bu davrda hali baho yo'q", reviews: "So'nggi baholar",
+      by_branch: "Filiallar bo'yicha", col_branch: 'Filial', col_rating: 'Baho',
     },
     ru: {
       cur: 'сум', pcs: 'шт', k: 'K', m: 'M',
@@ -122,7 +133,7 @@
       st_new: '🆕 Новый', st_accepted: '👨‍🍳 Готовится', st_on_the_way: '🚗 В пути', st_ready: '🛍 Готов', st_done: '✅ Завершён', st_cancelled: '❌ Отменён',
       act_accepted: '✅ Принять', act_on_the_way: '🚗 Отправлен', act_ready: '🛍 Готов', act_done: '🏁 Завершить', act_cancel: 'Отменить',
       confirm_cancel: 'Отменить заказ #{id}? Клиент получит уведомление.',
-      type_delivery: 'Доставка', type_pickup: 'Самовывоз', pay_cash: 'Наличные', pay_click: 'Click', pay_payme: 'Payme',
+      type_delivery: 'Доставка', type_pickup: 'Самовывоз', pay_cash: 'Наличные',
       map: 'Карта', delivery_fee: 'Доставка', total: 'Итого', stale: 'Статус уже изменился — список обновлён',
       categories: 'Категории', reorder: 'Порядок', reorder_done: 'Готово', new_product: 'Товар',
       edit_product: 'Редактирование товара', add_product: 'Новый товар', no_products: 'Здесь пока нет товаров',
@@ -169,7 +180,6 @@
       hours: 'Время работы', f_hours: 'Время работы', f_open: 'Открытие', f_close: 'Закрытие', hours_hint: 'Можно через полночь (например 10:00–02:00). Если круглосуточно — одинаковое время.',
       delivery: 'Доставка', f_delivery: 'Доставка', delivery_on: 'Есть доставка', f_fee: 'Стоимость доставки (сум)', f_free_from: 'Бесплатно от суммы (сум)', free_hint: '0 — всегда платно',
       f_min_order: 'Минимальный заказ (сум)', f_eta: 'Примерное время (мин)', pickup: 'Самовывоз', pickup_on: 'Есть самовывоз',
-      payments: 'Способы оплаты', f_payments: 'Оплата', cash: 'Наличные', soon: 'Скоро',
       unsaved: 'Есть несохранённые изменения', discard_confirm: 'Не сохранять изменения?',
       admins: 'Админы', owner: 'Владелец', owners_hint: 'Владельцы задаются в ADMIN_IDS в файле .env.',
       add_admin: 'Добавить админа', f_user_id: 'Telegram ID', f_admin_name: 'Имя (для себя)',
@@ -184,7 +194,7 @@
       e_bad_range: 'дата окончания раньше начала', e_title_or_image: 'нужен заголовок или фото',
       e_category_not_empty: 'В категории есть товары — сначала перенесите их или удалите',
       e_bad_image: 'Не удалось прочитать фото (загрузите JPG, PNG или WebP)', e_too_large: 'Фото слишком большое (до 12 МБ)',
-      e_need_one_type: 'должна быть включена доставка или самовывоз', e_need_one_payment: 'нужен хотя бы один способ оплаты',
+      e_need_one_type: 'должна быть включена доставка или самовывоз',
       e_owner_only: 'Только для владельца', e_broadcast_running: 'Уже идёт другая рассылка', e_stale: 'Статус уже изменился',
       e_unauthorized: 'Войдите заново', e_forbidden: 'Нет доступа', e_csrf: 'Обновите страницу',
       e_role_forbidden: 'Недостаточно прав для этого действия', e_already_owner: 'этот человек уже владелец',
@@ -194,6 +204,18 @@
       cashier_menu_note: '🔒 Режим кассира: можно только включать/выключать наличие товара.',
       cashier_settings_note: '🔒 Режим кассира: меню, цены, акции и настройки меняет администратор.',
       role_changed: '✅ Роль изменена',
+      branches: 'Филиалы', branches_hint: 'Время работы, адрес и Telegram-группа для заказов каждого филиала.',
+      new_branch: 'Новый филиал', edit_branch: 'Редактирование филиала', no_branches: 'Филиалов нет — заказы приходят в общую группу',
+      f_coords: 'Точка на карте', coords_ph: '40.5287, 70.9420 или ссылка на карту',
+      coords_hint: 'При доставке выбирается ближайший к клиенту филиал. Можно вставить ссылку на точку из Google или Яндекс Карт.',
+      f_chat_id: 'Группа для заказов (chat ID)', chat_id_hint: 'Добавьте бота в группу сотрудников филиала и напишите там /id. Если пусто — заказы придут в общую группу.',
+      branch_active_sub: 'Если выключить — клиенты не увидят этот филиал', group_own: 'Своя группа', group_main: 'Общая группа',
+      open_now: 'Открыт', closed_now: 'Закрыт', hours_24: '24/7', inactive: 'Выключен',
+      confirm_delete_branch: 'Удалить филиал «{name}»?',
+      e_branch_has_orders: 'В филиале есть активные заказы — сначала завершите их',
+      all_branches: 'Все филиалы',
+      rating: 'Оценки клиентов', rating_n: '{n} оценок', no_ratings: 'За этот период оценок пока нет', reviews: 'Последние оценки',
+      by_branch: 'По филиалам', col_branch: 'Филиал', col_rating: 'Оценка',
     },
   };
 
@@ -217,7 +239,7 @@
   const S = {
     lang: 'uz', me: null, page: 'orders',
     menu: null, banners: null, store: null, admins: null, bc: null, customers: 0,
-    orders: { tab: 'active', hist: 'history', list: [], q: '', hasMore: false },
+    orders: { tab: 'active', hist: 'history', list: [], q: '', hasMore: false, branch: '' }, branches: null,
     activeIds: null, activeCount: 0,
     stats: { days: 7, data: null, table: false },
     menuFilter: 'all', menuQuery: '', reorder: false,
@@ -307,7 +329,7 @@
   function applyTheme() {
     let dark = IN_TG ? tg.colorScheme === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    const bg = dark ? '#15110C' : '#FFF8EE';
+    const bg = dark ? '#0E0E0E' : '#F6F6F5';
     $('meta[name="theme-color"]').content = bg;
     if (tgAtLeast('6.1')) { try { tg.setHeaderColor(bg); tg.setBackgroundColor(bg); } catch (_) { /* */ } }
     if (tgAtLeast('7.10')) { try { tg.setBottomBarColor(bg); } catch (_) { /* */ } }
@@ -374,14 +396,16 @@
   // ================================================================ ORDERS
   async function loadOrders(more = false) {
     const o = S.orders;
+    if (!S.branches) S.branches = (await api('GET', '/api/admin/branches')).branches;
     const tab = o.tab === 'active' ? 'active' : o.hist;
     const qs = new URLSearchParams({ tab });
     if (o.q) qs.set('q', o.q);
+    if (o.branch) qs.set('branch', o.branch);
     if (more && o.list.length) qs.set('before', o.list[o.list.length - 1].id);
     const d = await api('GET', '/api/admin/orders?' + qs);
     o.list = more ? o.list.concat(d.orders) : d.orders;
     o.hasMore = d.has_more;
-    if (tab === 'active' && !o.q) trackActive(d.orders, false);
+    if (tab === 'active' && !o.q && !o.branch) trackActive(d.orders, false);
   }
 
   function trackActive(list, notify) {
@@ -399,13 +423,16 @@
     const lines = [];
     const who = esc(o.name || '—') + (o.username ? ` (<a href="https://t.me/${esc(o.username)}" target="_blank" rel="noopener">@${esc(o.username)}</a>)` : '');
     lines.push(`<div>👤 ${who} · <a href="tel:${esc(o.phone.replace(/[^\d+]/g, ''))}">${esc(o.phone)}</a></div>`);
+    const br = o.branch ? (o.branch[S.lang] || o.branch.uz) : '';
     if (o.type === 'delivery') {
       const map = o.lat != null ? ` · <a href="https://yandex.uz/maps/?pt=${o.lon},${o.lat}&z=17&l=map" target="_blank" rel="noopener">${t('map')}</a>` : '';
       lines.push(`<div>🚚 ${esc(o.address || '—')}${map}</div>`);
+      if (br) lines.push(`<div>🏪 ${esc(br)}</div>`);
     } else {
-      lines.push(`<div>🛍 ${t('type_pickup')}</div>`);
+      lines.push(`<div>🛍 ${t('type_pickup')}${br ? ' · ' + esc(br) : ''}</div>`);
     }
     if (o.comment) lines.push(`<div>💬 ${esc(o.comment)}</div>`);
+    if (o.rating) lines.push(`<div class="order__rating"><span class="stars">${'★'.repeat(o.rating)}${'☆'.repeat(5 - o.rating)}</span>${o.feedback ? ' ' + esc(o.feedback) : ''}</div>`);
 
     const items = o.items.map((it) => `<div class="order__item"><span>${esc((it.name && (it.name[S.lang] || it.name.uz)) || it.id)} × ${it.qty}</span><span>${money(it.price * it.qty)}</span></div>`).join('');
     const fee = o.type === 'delivery' ? `<div class="order__item muted"><span>${t('delivery_fee')}</span><span>${o.delivery_fee ? money(o.delivery_fee) : '0'}</span></div>` : '';
@@ -439,6 +466,8 @@
         <button class="${o.tab === 'history' ? 'is-active' : ''}" data-action="otab" data-tab="history">${t('tab_history')}</button>
       </div>
       <label class="search">${ICON.search}<input class="input" type="search" data-input="order-q" placeholder="${esc(t('orders_search'))}" value="${esc(o.q)}"></label>
+      ${(S.branches || []).length > 1 ? `<div class="chips">${[{ id: '', name_uz: t('all_branches') }].concat(S.branches).map((b) =>
+        `<button class="chip ${o.branch === b.id ? 'is-active' : ''}" data-action="obranch" data-id="${esc(b.id)}">${esc(nameOf(b))}</button>`).join('')}</div>` : ''}
       ${histChips}
       ${list}
       ${o.hasMore ? `<button class="btn btn--ghost load-more" data-action="more-orders">${t('load_more')}</button>` : ''}`;
@@ -468,7 +497,8 @@
       const o = S.orders;
       if (S.page === 'orders' && o.tab === 'active' && !o.q && !S.sheets.length) {
         const sig = (l) => l.map((x) => x.id + x.status).join();
-        if (sig(d.orders) !== sig(o.list)) { o.list = d.orders; renderOrders(); }
+        const fresh = o.branch ? d.orders.filter((x) => x.branch_id === o.branch) : d.orders;
+        if (sig(fresh) !== sig(o.list)) { o.list = fresh; renderOrders(); }
       }
     } catch (_) { /* jim */ }
   }
@@ -1044,7 +1074,28 @@
         <div class="hbar__track"><div class="hbar__fill" style="width:${(r.qty / topMax) * 100}%"></div></div></div>`).join('')}</div>`
         : `<div class="empty small">${t('no_data')}</div>`}</div>`;
 
-    $('#page').innerHTML = seg + kpis + daily + busy + top;
+    const r = d.rating || { count: 0, dist: [0, 0, 0, 0, 0] };
+    const rMax = Math.max(1, ...r.dist);
+    const starsTxt = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+    const decimal = (v) => String(v).replace('.', S.lang === 'ru' ? ',' : '.');
+    const rating = `<div class="card"><div class="card__h"><h3 class="card__title">${t('rating')}</h3></div>
+      ${r.count ? `<div class="rating">
+          <div class="rating__score"><div class="rating__big">${decimal(r.avg)}</div><div class="stars">${starsTxt(Math.round(r.avg))}</div>
+            <div class="small muted">${t('rating_n', { n: r.count })}</div></div>
+          <div class="rating__dist">${[5, 4, 3, 2, 1].map((n) => `<div class="rdist"><span>${n} ★</span>
+            <div class="hbar__track"><div class="hbar__fill" style="width:${(r.dist[n - 1] / rMax) * 100}%"></div></div><b>${r.dist[n - 1]}</b></div>`).join('')}</div>
+        </div>
+        ${(d.reviews || []).length ? `<h4 class="subhead">${t('reviews')}</h4><div class="reviews">${d.reviews.map((v) => `<div class="review">
+          <div class="review__head"><span class="stars">${starsTxt(v.rating)}</span><span class="small muted">#${v.id} · ${esc(v.name || '—')} · ${esc(v.date)}</span></div>
+          ${v.feedback ? `<div class="review__text">${esc(v.feedback)}</div>` : ''}</div>`).join('')}</div>` : ''}`
+        : `<div class="empty small">${t('no_ratings')}</div>`}</div>`;
+    const brs = d.branches || [];
+    const byBranch = brs.length > 1 ? `<div class="card"><div class="card__h"><h3 class="card__title">${t('by_branch')}</h3></div>
+      <table class="dtable"><thead><tr><th>${t('col_branch')}</th><th>${t('col_orders')}</th><th>${t('col_revenue')}</th><th>${t('col_rating')}</th></tr></thead>
+      <tbody>${brs.map((b) => `<tr><td>${esc(b.name ? (b.name[S.lang] || b.name.uz) : '—')}</td><td>${b.orders}</td><td>${money(b.revenue)}</td>
+        <td>${b.rating ? decimal(b.rating) + ' ★' : '—'}</td></tr>`).join('')}</tbody></table></div>` : '';
+
+    $('#page').innerHTML = seg + kpis + rating + daily + byBranch + busy + top;
   }
 
   // tooltip
@@ -1073,7 +1124,9 @@
       S.store = (await api('GET', '/api/admin/store')).store;
       return;
     }
-    const [s, a, b] = await Promise.all([api('GET', '/api/admin/store'), api('GET', '/api/admin/admins'), api('GET', '/api/admin/broadcast')]);
+    const [s, a, b, br] = await Promise.all([api('GET', '/api/admin/store'), api('GET', '/api/admin/admins'),
+      api('GET', '/api/admin/broadcast'), api('GET', '/api/admin/branches')]);
+    S.branches = br.branches;
     S.store = s.store;
     S.admins = a;
     S.bc = b.state;
@@ -1089,7 +1142,6 @@
       <div class="segment" style="margin-top:0">${['uz', 'ru'].map((l) => `<button class="${S.lang === l ? 'is-active' : ''}" data-action="lang" data-lang="${l}">${l === 'uz' ? "O'zbekcha" : 'Русский'}</button>`).join('')}</div></div>
       <div class="small muted">${t('desktop_hint')}</div>
       ${IN_TG ? '' : `<button class="btn btn--ghost btn--block" style="margin-top:12px" data-action="logout">${t('logout')}</button>`}</div>`;
-    const loc = s.location || {};
     const pause = `<div class="card pause-card ${on ? '' : 'is-paused'}">
       <div class="pause-card__icon">${on ? '🟢' : '⏸'}</div>
       <div class="grow"><div class="card__title">${on ? t('accepting_on') : t('accepting_off')}</div>
@@ -1108,18 +1160,6 @@
         ${field(t('f_about_ru'), area('about.ru', s.about.ru, 'maxlength="600" rows="3"'))}
         <div class="grid2">${field(t('f_phone'), inp('phone', s.phone, 'type="tel" maxlength="30"'))}${field(t('f_support_username'), inp('support_username', s.support_username, 'maxlength="41" placeholder="@username"'))}</div>
         ${field(t('f_instagram'), inp('instagram', s.instagram, 'maxlength="60" placeholder="ayvaburgers"'))}
-        ${field(t('f_address_uz'), inp('address.uz', s.address.uz, 'maxlength="200"'))}
-        ${field(t('f_address_ru'), inp('address.ru', s.address.ru, 'maxlength="200"'))}
-        <div class="field"><span class="field__label">${t('f_location')}</span>
-          <div class="grid2"><input class="input" name="location.lat" type="number" step="any" data-num placeholder="${t('f_lat')}" value="${loc.lat ?? ''}">
-          <input class="input" name="location.lon" type="number" step="any" data-num placeholder="${t('f_lon')}" value="${loc.lon ?? ''}"></div>
-          <div class="row-gap" style="margin-top:8px"><button type="button" class="btn btn--sm" data-action="my-location">${t('my_location')}</button>
-          ${loc.lat ? `<a class="btn btn--sm btn--ghost" target="_blank" rel="noopener" href="https://yandex.uz/maps/?pt=${loc.lon},${loc.lat}&z=17&l=map">${t('check_map')}</a>` : ''}</div>
-        </div>
-      </div>
-      <div class="card"><h3 class="card__title" style="margin-bottom:12px">${t('hours')}</h3>
-        <div class="grid2">${field(t('f_open'), `<input class="input" type="time" name="hours.open" value="${esc(s.hours.open)}">`)}${field(t('f_close'), `<input class="input" type="time" name="hours.close" value="${esc(s.hours.close)}">`)}</div>
-        <div class="field__hint" style="margin-top:-4px">${t('hours_hint')}</div>
       </div>
       <div class="card"><h3 class="card__title">${t('delivery')}</h3>
         ${switchRow('delivery.enabled', s.delivery.enabled, t('delivery_on'), '')}
@@ -1129,11 +1169,6 @@
       <div class="card"><h3 class="card__title">${t('pickup')}</h3>
         ${switchRow('pickup.enabled', s.pickup.enabled, t('pickup_on'), '')}
         <div class="grid2">${field(t('f_min_order'), numInp('pickup.min_order', s.pickup.min_order))}${field(t('f_eta'), inp('pickup.eta', s.pickup.eta, 'maxlength="20" placeholder="15–20"'))}</div>
-      </div>
-      <div class="card" style="padding-bottom:4px"><h3 class="card__title">${t('payments')}</h3>
-        ${switchRow('payments.cash', s.payments.cash, '💵 ' + t('cash'), '')}
-        ${switchRow('payments.click', false, 'Click', `<span class="tag">${t('soon')}</span>`, 'disabled')}
-        ${switchRow('payments.payme', false, 'Payme', `<span class="tag">${t('soon')}</span>`, 'disabled')}
       </div>
     </form>`;
 
@@ -1169,7 +1204,7 @@
         </form>`;
     const broadcast = `<div class="card"><h3 class="card__title">${t('broadcast')}</h3><div class="card__sub" style="margin-top:4px">${t('broadcast_hint')}</div>${bcBody}</div>`;
 
-    $('#page').innerHTML = pause + form + admins + broadcast + panel;
+    $('#page').innerHTML = pause + branchesCard() + form + admins + broadcast + panel;
   }
 
   function renderSavebar() {
@@ -1188,10 +1223,6 @@
   async function saveStore() {
     const root = $('#sform');
     const f = readForm(root);
-    const lat = f.location.lat, lon = f.location.lon;
-    f.location = lat == null && lon == null ? null : { lat, lon };
-    delete f.payments.click;
-    delete f.payments.payme;
     ['fee', 'free_from', 'min_order'].forEach((k) => { if (f.delivery[k] == null) f.delivery[k] = 0; });
     if (f.pickup.min_order == null) f.pickup.min_order = 0;
     try {
@@ -1245,11 +1276,134 @@
   function myLocation() {
     if (!navigator.geolocation) return toast(t('e_generic'), 'error');
     navigator.geolocation.getCurrentPosition((p) => {
-      $('[name="location.lat"]').value = p.coords.latitude.toFixed(6);
-      $('[name="location.lon"]').value = p.coords.longitude.toFixed(6);
-      S.dirty = true;
-      renderSavebar();
+      const el = $('#bform [name="coords"]');
+      if (el) el.value = `${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`;
     }, () => toast(t('e_generic'), 'error'), { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  // ---------- filiallar ----------
+  function branchesCard() {
+    const list = S.branches || [];
+    const rows = list.map((b, i) => {
+      const hours = b.open === b.close ? t('hours_24') : `${b.open}–${b.close}`;
+      const state = !b.active ? `<span class="tag">${t('inactive')}</span>`
+        : b.is_open ? `<span class="tag tag--ok">${t('open_now')}</span>` : `<span class="tag tag--danger">${t('closed_now')}</span>`;
+      return `<div class="prow" data-action="edit-branch" data-id="${esc(b.id)}">
+        <div class="prow__info"><div class="prow__name">${esc(nameOf(b))}</div>
+          <div class="prow__meta muted">${state}<span>${hours} · ${b.chat_id ? t('group_own') : t('group_main')}</span></div>
+          ${nameOf(b, 'address') ? `<div class="prow__meta muted">${esc(nameOf(b, 'address'))}</div>` : ''}</div>
+        <div class="prow__side">
+          <button class="icon-btn" data-action="move-branch" data-id="${esc(b.id)}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button>
+          <button class="icon-btn" data-action="move-branch" data-id="${esc(b.id)}" data-dir="1" ${i === list.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
+        </div></div>`;
+    }).join('');
+    return `<div class="card" id="branches-card"><div class="card__h"><h3 class="card__title">${t('branches')}</h3>
+        <button class="btn btn--sm" data-action="new-branch">${ICON.plus.replace('<svg', '<svg width="16" height="16"')} ${t('add')}</button></div>
+      <div class="card__sub" style="margin:-4px 0 6px">${t('branches_hint')}</div>
+      ${list.length ? `<div class="plist plist--flat">${rows}</div>` : `<div class="empty small">${t('no_branches')}</div>`}</div>`;
+  }
+  function refreshBranches() { const el = $('#branches-card'); if (el) el.outerHTML = branchesCard(); }
+
+  // "9:00", "9.00", "0900" -> "09:00"
+  function normTime(raw) {
+    let v = String(raw || '').trim().replace('.', ':');
+    if (/^\d{4}$/.test(v)) v = v.slice(0, 2) + ':' + v.slice(2);
+    const m = v.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return null;
+    return m[1].padStart(2, '0') + ':' + m[2];
+  }
+
+  // "40.52, 70.94", Google (@lat,lon yoki q=lat,lon) va Yandex (pt=lon,lat) havolalari
+  function parseCoords(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const ok = (lat, lon) => (Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? { lat: +lat.toFixed(6), lon: +lon.toFixed(6) } : false);
+    let m = s.match(/yandex\.[a-z]+\/maps.*?[?&](?:pt|ll|whatshere%5Bpoint%5D)=(-?\d+(?:\.\d+)?)(?:,|%2C)(-?\d+(?:\.\d+)?)/i);
+    if (m) return ok(Number(m[2]), Number(m[1]));
+    m = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || s.match(/[?&](?:q|query|ll|destination)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i)
+      || s.match(/^(-?\d{1,3}(?:\.\d+)?)\s*[,; ]\s*(-?\d{1,3}(?:\.\d+)?)$/);
+    if (m) return ok(Number(m[1]), Number(m[2]));
+    return false;
+  }
+
+  function openBranchForm(id) {
+    const b = id ? S.branches.find((x) => x.id === id)
+      : { name_uz: '', name_ru: '', address_uz: '', address_ru: '', phone: '', open: '10:00', close: '02:00', lat: null, lon: null, chat_id: null, active: true };
+    openSheet({
+      title: id ? t('edit_branch') : t('new_branch'),
+      body: () => `<form id="bform" onsubmit="return false">
+        <div class="grid2">${field(t('f_name_uz') + ' <b>*</b>', inp('name_uz', b.name_uz, 'maxlength="40"'))}${field(t('f_name_ru'), inp('name_ru', b.name_ru, 'maxlength="40"'))}</div>
+        ${field(t('f_address_uz'), inp('address_uz', b.address_uz, 'maxlength="200"'))}
+        ${field(t('f_address_ru'), inp('address_ru', b.address_ru, 'maxlength="200"'), t('ru_hint'))}
+        ${field(t('f_phone'), inp('phone', b.phone, 'type="tel" maxlength="30"'))}
+        <div class="grid2">${field(t('f_open'), inp('open', b.open, 'inputmode="numeric" maxlength="5" placeholder="10:00" autocomplete="off"'))}${field(t('f_close'), inp('close', b.close, 'inputmode="numeric" maxlength="5" placeholder="02:00" autocomplete="off"'))}</div>
+        <div class="field__hint" style="margin:-4px 2px 12px">${t('hours_hint')}</div>
+        ${field(t('f_coords'), inp('coords', b.lat != null ? `${b.lat}, ${b.lon}` : '', `placeholder="${esc(t('coords_ph'))}"`), t('coords_hint'))}
+        <div class="row-gap" style="margin:-4px 0 14px"><button type="button" class="btn btn--sm btn--ghost" data-action="my-location">${t('my_location')}</button>
+          ${b.lat != null ? `<a class="btn btn--sm btn--ghost" target="_blank" rel="noopener" href="https://yandex.uz/maps/?pt=${b.lon},${b.lat}&z=17&l=map">${t('check_map')}</a>` : ''}</div>
+        ${field(t('f_chat_id'), inp('chat_id', b.chat_id ?? '', 'placeholder="-100…" autocomplete="off"'), t('chat_id_hint'))}
+        <div class="card" style="padding:4px 16px">${switchRow('active', b.active, t('f_active'), t('branch_active_sub'))}</div>
+      </form>`,
+      foot: () => `${id ? `<button class="btn btn--danger" data-action="delete-branch" data-id="${esc(id)}">${t('delete')}</button>` : ''}
+        <button class="btn btn--primary" data-action="save-branch" data-id="${esc(id || '')}">${t('save')}</button>`,
+    });
+  }
+
+  async function saveBranch(id) {
+    const root = $('#bform');
+    const f = readForm(root);
+    if (!f.name_uz.trim()) { markInvalid(root, 'name_uz'); return toast(`${t('f_name_uz')}: ${t('e_required')}`, 'error'); }
+    const coords = parseCoords(f.coords);
+    if (coords === false) { markInvalid(root, 'coords'); return toast(`${t('f_coords')}: ${t('e_invalid')}`, 'error'); }
+    for (const k of ['open', 'close']) {
+      const hhmm = normTime(f[k]);
+      if (!hhmm) { markInvalid(root, k); return toast(`${t('f_' + k)}: ${t('e_invalid')}`, 'error'); }
+      f[k] = hhmm;
+    }
+    const chat = String(f.chat_id || '').trim();
+    if (chat && !/^-?\d{3,16}$/.test(chat)) { markInvalid(root, 'chat_id'); return toast(`${t('f_chat_id')}: ${t('e_invalid')}`, 'error'); }
+    const body = {
+      name_uz: f.name_uz.trim(), name_ru: f.name_ru.trim(), address_uz: f.address_uz.trim(), address_ru: f.address_ru.trim(),
+      phone: f.phone.trim(), open: f.open, close: f.close, lat: coords ? coords.lat : null, lon: coords ? coords.lon : null,
+      chat_id: chat ? Number(chat) : null, active: f.active,
+    };
+    try {
+      if (id) await api('PATCH', `/api/admin/branches/${encodeURIComponent(id)}`, body);
+      else await api('POST', '/api/admin/branches', body);
+      S.branches = (await api('GET', '/api/admin/branches')).branches;
+      closeSheet();
+      toast(t('saved'), 'ok');
+      refreshBranches();
+    } catch (e) {
+      const fld = { location: 'coords', open: 'open', close: 'close', chat_id: 'chat_id', name_uz: 'name_uz' }[e.field];
+      if (fld) markInvalid(root, fld);
+      fail(e);
+    }
+  }
+
+  async function deleteBranch(id) {
+    const b = S.branches.find((x) => x.id === id);
+    if (!b || !(await confirmBox(t('confirm_delete_branch', { name: nameOf(b) })))) return;
+    try {
+      await api('DELETE', `/api/admin/branches/${encodeURIComponent(id)}`);
+      S.branches = (await api('GET', '/api/admin/branches')).branches;
+      closeSheet();
+      toast(t('deleted'), 'ok');
+      refreshBranches();
+    } catch (e) { fail(e); }
+  }
+
+  async function moveBranch(id, dir) {
+    const list = S.branches.slice();
+    const i = list.findIndex((b) => b.id === id);
+    const j = i + dir;
+    if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    try {
+      await api('POST', '/api/admin/branches/reorder', { ids: list.map((b) => b.id) });
+      S.branches = (await api('GET', '/api/admin/branches')).branches;
+      refreshBranches();
+    } catch (e) { fail(e); }
   }
 
   async function addAdmin() {
@@ -1328,6 +1482,7 @@
       case 'otab': S.orders.tab = el.dataset.tab; S.orders.q = ''; await loadOrders().catch(fail); renderOrders(); break;
       case 'hist': S.orders.hist = el.dataset.h; await loadOrders().catch(fail); renderOrders(); break;
       case 'more-orders': await loadOrders(true).catch(fail); renderOrders(); break;
+      case 'obranch': S.orders.branch = el.dataset.id; await loadOrders().catch(fail); renderOrders(); haptic('select'); break;
       case 'ost': el.disabled = true; await setOrderStatus(Number(id), el.dataset.st); break;
       // menu
       case 'mfilter': S.menuFilter = el.dataset.cat; renderMenu(); haptic('select'); break;
@@ -1378,6 +1533,11 @@
       case 'save-store': await saveStore(); break;
       case 'discard': S.dirty = false; renderPage(); break;
       case 'my-location': myLocation(); break;
+      case 'new-branch': openBranchForm(null); break;
+      case 'edit-branch': openBranchForm(id); break;
+      case 'save-branch': await saveBranch(id); break;
+      case 'delete-branch': await deleteBranch(id); break;
+      case 'move-branch': await moveBranch(id, Number(el.dataset.dir)); break;
       case 'add-admin': await addAdmin(); break;
       case 'remove-admin': await removeAdmin(id, el.dataset.name); break;
       case 'send-broadcast': await sendBroadcast(); break;
