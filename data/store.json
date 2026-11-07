@@ -5,8 +5,8 @@
     "ru": "Полюбите с первого укуса!"
   },
   "about": {
-    "uz": "Ayva Burgers — Qo'qondagi sevimli fast-food. Burgerlar, pitsalar, lavash, KFC va hot-doglar. Barcha mahsulotlar 100% halol.\n\nFiliallar:\n• CHPK — 08:00–03:00, +998 90 628 80 00\n• Charxiy — 24/7, +998 90 629 80 00\n• Navoiy — 08:00–00:00, +998 90 728 80 00",
-    "ru": "Ayva Burgers — любимый фастфуд Коканда. Бургеры, пицца, лаваш, KFC и хот-доги. Вся продукция 100% халяль.\n\nФилиалы:\n• ЧПК — 08:00–03:00, +998 90 628 80 00\n• Чархий — 24/7, +998 90 629 80 00\n• Навои — 08:00–00:00, +998 90 728 80 00"
+    "uz": "Ayva Burgers — Qo'qondagi sevimli fast-food. Burgerlar, pitsalar, lavash, KFC va hot-doglar. Barcha mahsulotlar 100% halol.",
+    "ru": "Ayva Burgers — любимый фастфуд Коканда. Бургеры, пицца, лаваш, KFC и хот-доги. Вся продукция 100% халяль."
   },
   "phone": "+998 90 628 80 00",
   "support_username": "ayva_burgers",
@@ -16,7 +16,10 @@
     "ru": "Коканд, ЧПК — напротив магазина «Атлас»"
   },
   "location": null,
-  "hours": { "open": "08:00", "close": "03:00" },
+  "hours": {
+    "open": "08:00",
+    "close": "03:00"
+  },
   "delivery": {
     "enabled": true,
     "fee": 0,
@@ -30,8 +33,59 @@
     "eta": "15–20"
   },
   "payments": {
-    "cash": true,
-    "click": false,
-    "payme": false
-  }
+    "cash": true
+  },
+  "branches": [
+    {
+      "id": "chpk",
+      "name": {
+        "uz": "CHPK",
+        "ru": "ЧПК"
+      },
+      "address": {
+        "uz": "Qo'qon, CHPK — Atlas magazin ro'parasida",
+        "ru": "Коканд, ЧПК — напротив магазина «Атлас»"
+      },
+      "phone": "+998 90 628 80 00",
+      "hours": {
+        "open": "08:00",
+        "close": "03:00"
+      },
+      "location": null
+    },
+    {
+      "id": "charxiy",
+      "name": {
+        "uz": "Charxiy",
+        "ru": "Чархий"
+      },
+      "address": {
+        "uz": "Qo'qon, Charxiy — Eski Minutka bekati (mo'ljal: Benazir kafe)",
+        "ru": "Коканд, Чархий — ост. Старая Минутка (ориентир: кафе «Беназир»)"
+      },
+      "phone": "+998 90 629 80 00",
+      "hours": {
+        "open": "00:00",
+        "close": "00:00"
+      },
+      "location": null
+    },
+    {
+      "id": "navoiy",
+      "name": {
+        "uz": "Navoiy",
+        "ru": "Навои"
+      },
+      "address": {
+        "uz": "Qo'qon, Navoiy filiali (aniq manzilni panelda kiriting)",
+        "ru": "Коканд, филиал Навои (уточните адрес в панели)"
+      },
+      "phone": "+998 90 728 80 00",
+      "hours": {
+        "open": "08:00",
+        "close": "00:00"
+      },
+      "location": null
+    }
+  ]
 }

@@ -14,6 +14,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from .catalog import TASHKENT_TZ, fmt_money
 from .context import AppContext
 from .db import local_time
+from .keyboards import cancel_keyboard
 from .texts import at, norm_lang, t
 
 log = logging.getLogger(__name__)
@@ -84,6 +85,9 @@ def admin_text(ctx: AppContext, order: dict[str, Any], user: dict[str, Any] | No
         at(lang, "phone", phone=escape(order["phone"])),
         at(lang, "type", type=t(lang, f"type_{order['type']}")),
     ]
+    branch = ctx.catalog.branch(order.get("branch_id"))
+    if branch:
+        parts.append(at(lang, "branch", name=escape(branch["name"].get(lang) or branch["id"])))
     if order["type"] == "delivery":
         parts.append(at(lang, "address", address=escape(order.get("address") or "—")))
         if order.get("lat") is not None and order.get("lon") is not None:
@@ -95,6 +99,8 @@ def admin_text(ctx: AppContext, order: dict[str, Any], user: dict[str, Any] | No
 
     created = local_time(order["created_at"]).strftime("%H:%M, %d.%m.%Y")
     parts.append(f"🕒 {created}")
+    if order.get("rating"):
+        parts.append(at(lang, "rating_line", stars=stars(order["rating"])))
     status = at(lang, "status", status=t(lang, f"st_{order['status']}"))
     if changed_by:
         status += " " + at(lang, "changed_by", by=escape(changed_by),
@@ -132,13 +138,32 @@ def cancel_confirm_keyboard(ctx: AppContext, order_id: int) -> InlineKeyboardMar
     ]])
 
 
+def stars(n: int) -> str:
+    return "⭐" * max(0, min(5, int(n)))
+
+
+def pickup_address(ctx: AppContext, order: dict[str, Any], lang: str) -> str:
+    branch = ctx.catalog.branch(order.get("branch_id"))
+    if branch:
+        return f"{branch['name'].get(lang) or branch['id']} — {branch['address'].get(lang, '')}"
+    return ctx.catalog.store.get("address", {}).get(lang, "")
+
+
+def rating_keyboard(order_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=f"{n} ⭐", callback_data=f"rate:{order_id}:{n}") for n in range(1, 6)
+    ]])
+
+
 def user_order_created_text(ctx: AppContext, order: dict[str, Any]) -> str:
     lang = order["lang"]
-    store = ctx.catalog.store
     if order["type"] == "delivery":
         where = t(lang, "where_delivery", address=escape(order.get("address") or ""))
+        branch = ctx.catalog.branch(order.get("branch_id"))
+        if branch:
+            where += "\n" + t(lang, "branch_line", name=escape(branch["name"].get(lang) or branch["id"]))
     else:
-        where = t(lang, "where_pickup", address=escape(store.get("address", {}).get(lang, "")))
+        where = t(lang, "where_pickup", address=escape(pickup_address(ctx, order, lang)))
     return t(
         lang, "order_created", id=order["id"], items=item_lines(order["items"], lang),
         summary=summary_lines(order, lang), payment=t(lang, f"pay_{order['payment']}"), where=where,
@@ -151,8 +176,12 @@ def user_status_text(ctx: AppContext, order: dict[str, Any]) -> str | None:
     key = f"notify_{order['status']}"
     if order["status"] == "new":
         return None
-    return t(lang, key, id=order["id"], phone=escape(store.get("phone", "")),
-             address=escape(store.get("address", {}).get(lang, "")))
+    branch = ctx.catalog.branch(order.get("branch_id"))
+    phone = (branch or {}).get("phone") or store.get("phone", "")
+    text = t(lang, key, id=order["id"], phone=escape(phone), address=escape(pickup_address(ctx, order, lang)))
+    if order["status"] == "done":
+        text += t(lang, "rate_ask")
+    return text
 
 
 def user_order_short(order: dict[str, Any], lang: str) -> str:
@@ -182,6 +211,12 @@ async def _with_retry(coro_factory, attempts: int = 4):
     return None
 
 
+def order_chat(ctx: AppContext, order: dict[str, Any]) -> int:
+    """Buyurtma qaysi guruhga boradi: filialning o'z guruhi, bo'lmasa umumiy ADMIN_CHAT_ID."""
+    branch = ctx.catalog.branch(order.get("branch_id"))
+    return int((branch or {}).get("chat_id") or ctx.settings.admin_chat_id or 0)
+
+
 async def announce_new_order(ctx: AppContext, order_id: int) -> None:
     """Yangi buyurtmani admin guruhiga va mijozga yuboradi. Fon vazifasi sifatida ishlaydi."""
     order = await ctx.db.get_order(order_id)
@@ -189,21 +224,25 @@ async def announce_new_order(ctx: AppContext, order_id: int) -> None:
         return
     user = await ctx.db.get_user(order["user_id"])
 
-    if ctx.settings.admin_chat_id:
+    chat_id = order_chat(ctx, order)
+    if chat_id:
         try:
             msg = await _with_retry(lambda: ctx.bot.send_message(
-                ctx.settings.admin_chat_id, admin_text(ctx, order, user),
+                chat_id, admin_text(ctx, order, user),
                 reply_markup=admin_keyboard(ctx, order), disable_web_page_preview=True,
             ))
             if msg is not None:
-                await ctx.db.set_admin_message(order_id, msg.message_id)
+                await ctx.db.set_admin_message(order_id, msg.message_id, chat_id)
         except Exception:
             log.exception("Buyurtma #%s admin guruhiga yuborilmadi", order_id)
     else:
         log.warning("ADMIN_CHAT_ID sozlanmagan — buyurtma #%s faqat bazada", order_id)
 
     try:
-        await _with_retry(lambda: ctx.bot.send_message(order["user_id"], user_order_created_text(ctx, order)))
+        await _with_retry(lambda: ctx.bot.send_message(
+            order["user_id"], user_order_created_text(ctx, order),
+            reply_markup=cancel_keyboard(norm_lang(order["lang"]), order_id),
+        ))
     except Exception:
         log.info("Mijozga #%s tasdig'i yuborilmadi (user_id=%s)", order_id, order["user_id"])
 
@@ -212,8 +251,9 @@ async def notify_user_status(ctx: AppContext, order: dict[str, Any]) -> None:
     text = user_status_text(ctx, order)
     if not text:
         return
+    markup = rating_keyboard(order["id"]) if order["status"] == "done" else None
     try:
-        await _with_retry(lambda: ctx.bot.send_message(order["user_id"], text))
+        await _with_retry(lambda: ctx.bot.send_message(order["user_id"], text, reply_markup=markup))
     except Exception:
         log.info("Mijozga #%s holati yuborilmadi", order["id"])
 
@@ -228,15 +268,44 @@ async def apply_status(ctx: AppContext, order_id: int, new_status: str) -> tuple
     return True, await ctx.db.get_order(order_id)
 
 
+async def notify_staff(ctx: AppContext, order: dict[str, Any], text: str) -> None:
+    """Buyurtma xabariga javob tariqasida guruhga qisqa xabar (mijoz bekor qildi, baho qo'ydi)."""
+    chat_id = order.get("admin_chat_id") or order_chat(ctx, order)
+    if not chat_id:
+        return
+    try:
+        await _with_retry(lambda: ctx.bot.send_message(
+            chat_id, text, reply_to_message_id=order.get("admin_message_id"),
+            allow_sending_without_reply=True,
+        ))
+    except Exception:
+        log.info("Guruhga #%s haqida xabar yuborilmadi", order["id"])
+
+
+async def customer_cancelled(ctx: AppContext, order: dict[str, Any]) -> None:
+    lang = ctx.settings.admin_lang
+    await sync_admin_message(ctx, order, at(lang, "by_customer"))
+    await notify_staff(ctx, order, at(lang, "customer_cancelled", id=order["id"]))
+
+
+async def customer_rated(ctx: AppContext, order: dict[str, Any]) -> None:
+    lang = ctx.settings.admin_lang
+    text = at(lang, "rating_note", stars=stars(order["rating"]), id=order["id"], name=escape(order.get("name") or "—"))
+    if order.get("feedback"):
+        text += "\n💬 " + escape(order["feedback"])
+    await notify_staff(ctx, order, text)
+
+
 async def sync_admin_message(ctx: AppContext, order: dict[str, Any], changed_by: str | None) -> None:
     """Admin paneldan o'zgartirilganda guruhdagi buyurtma xabarini ham yangilaydi."""
-    if not ctx.settings.admin_chat_id or not order.get("admin_message_id"):
+    chat_id = order.get("admin_chat_id") or ctx.settings.admin_chat_id
+    if not chat_id or not order.get("admin_message_id"):
         return
     user = await ctx.db.get_user(order["user_id"])
     try:
         await ctx.bot.edit_message_text(
             text=admin_text(ctx, order, user, changed_by=changed_by),
-            chat_id=ctx.settings.admin_chat_id, message_id=order["admin_message_id"],
+            chat_id=chat_id, message_id=order["admin_message_id"],
             reply_markup=admin_keyboard(ctx, order), disable_web_page_preview=True,
         )
     except Exception:

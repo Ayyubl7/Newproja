@@ -231,13 +231,13 @@ def test_store_settings_and_pause(tmp_path):
                     "location": {"lat": 41.3, "lon": 69.2}, "support_username": "@ayva_admin"}
             store = (await (await client.patch("/api/admin/store", json=body, headers=tma())).json())["store"]
             assert store["delivery"]["fee"] == 15000 and store["delivery"]["free_from"] == 150000
-            assert store["payments"]["click"] is False  # hali ulanmagan
+            assert store["payments"] == {"cash": True}  # faqat naqd pul
             assert store["support_username"] == "ayva_admin" and store["location"] == {"lat": 41.3, "lon": 69.2}
             assert ctx.catalog.delivery_fee(50000, "delivery") == 15000
 
             for bad in ({"hours": {"open": "25:00", "close": "02:00"}}, {"name": ""},
                         {"delivery": {"enabled": False}, "pickup": {"enabled": False}},
-                        {"payments": {"cash": False}}, {"location": {"lat": 200, "lon": 1}}):
+                        {"location": {"lat": 200, "lon": 1}}):
                 r = await client.patch("/api/admin/store", json=bad, headers=tma())
                 assert r.status == 400, bad
         finally:
@@ -439,6 +439,87 @@ def test_product_variants_via_admin(tmp_path):
             for bad in ([{"uz": "", "price": 1000}], [{"uz": "A", "price": 5}], "x", [{"uz": "A", "price": 1000}] * 13):
                 r = await client.patch(f"/api/admin/products/{pid}", json={"variants": bad}, headers=tma())
                 assert r.status == 400, bad
+        finally:
+            await close(client, ctx)
+    run(go())
+
+
+def test_branches_admin(tmp_path):
+    async def go():
+        client, ctx, session = await make_client(tmp_path)
+        try:
+            branches = (await (await client.get("/api/admin/branches", headers=tma())).json())["branches"]
+            assert [b["id"] for b in branches] == ["main"]
+
+            body = {"name_uz": "Charxiy", "name_ru": "Чархий", "address_uz": "Eski Minutka", "phone": "+998 90 629 80 00",
+                    "open": "00:00", "close": "00:00", "lat": 40.53, "lon": 70.94, "chat_id": -100555, "active": True}
+            r = await client.post("/api/admin/branches", json=body, headers=tma())
+            b = (await r.json())["branch"]
+            assert r.status == 200 and b["chat_id"] == -100555 and b["is_open"] is True
+            assert ctx.catalog.branch(b["id"])["location"] == {"lat": 40.53, "lon": 70.94}
+            assert -100555 in ctx.staff_chats()
+
+            for bad in ({"name_uz": ""}, {"name_uz": "X", "open": "25:00"}, {"name_uz": "X", "lat": 100, "lon": 1},
+                        {"name_uz": "X", "chat_id": "abc"}, {"name_uz": "X", "active": "yes"}):
+                assert (await client.post("/api/admin/branches", json=bad, headers=tma())).status == 400, bad
+
+            r = await client.patch(f"/api/admin/branches/{b['id']}", json={"active": False, "lat": None, "lon": None},
+                                   headers=tma())
+            assert (await r.json())["branch"]["active"] is False
+            assert ctx.catalog.branch(b["id"])["location"] is None
+            assert [x["id"] for x in ctx.catalog.active_branches()] == ["main"]
+            r = await client.post("/api/admin/branches/reorder", json={"ids": [b["id"], "main"]}, headers=tma())
+            assert r.status == 200 and ctx.catalog.branches[0]["id"] == b["id"]
+
+            # faol buyurtmasi bor filialni o'chirib bo'lmaydi
+            r = await client.post("/api/order", json={**ORDER, "type": "pickup", "branch_id": "main"}, headers=tma(7))
+            assert r.status == 200
+            assert (await client.delete("/api/admin/branches/main", headers=tma())).status == 409
+            assert (await client.delete(f"/api/admin/branches/{b['id']}", headers=tma())).status == 200
+            assert (await client.delete("/api/admin/branches/nope", headers=tma())).status == 404
+
+            # buyurtmalar ro'yxatida filial va filtr
+            lst = await (await client.get("/api/admin/orders?tab=active&branch=main", headers=tma())).json()
+            assert len(lst["orders"]) == 1 and lst["orders"][0]["branch"]["uz"] == "Ayva Burgers"
+            lst = await (await client.get("/api/admin/orders?tab=active&branch=other", headers=tma())).json()
+            assert lst["orders"] == []
+
+            # kassir ko'ra oladi, o'zgartira olmaydi
+            await ctx.db.add_admin(50, "Kassa", "cashier")
+            await ctx.reload_admins()
+            assert (await client.get("/api/admin/branches", headers=tma(50))).status == 200
+            assert (await client.post("/api/admin/branches", json=body, headers=tma(50))).status == 403
+        finally:
+            await close(client, ctx)
+    run(go())
+
+
+def test_stats_ratings_and_branches(tmp_path):
+    async def go():
+        client, ctx, session = await make_client(tmp_path)
+        try:
+            ids = []
+            for uid in (7, 8, 9):
+                r = await client.post("/api/order", json=ORDER, headers=tma(uid))
+                ids.append((await r.json())["order"]["id"])
+            for oid in ids[:2]:
+                for st in ("accepted", "on_the_way", "done"):
+                    await ctx.db.update_status(oid, {"accepted": "new", "on_the_way": "accepted", "done": "on_the_way"}[st], st)
+            assert await ctx.db.set_rating(ids[0], 7, 5)
+            assert not await ctx.db.set_rating(ids[0], 8, 1)       # begona odam
+            assert await ctx.db.set_rating(ids[1], 8, 2)
+            assert await ctx.db.set_feedback(ids[1], 8, "Sovuq edi")
+            assert not await ctx.db.set_rating(ids[2], 9, 4)        # hali yakunlanmagan
+
+            st = await (await client.get("/api/admin/stats?days=7", headers=tma())).json()
+            assert st["rating"] == {"avg": 3.5, "count": 2, "dist": [0, 1, 0, 0, 1]}
+            assert st["branches"][0]["id"] == "main" and st["branches"][0]["orders"] == 3
+            assert st["branches"][0]["rating"] == 3.5
+            assert [r["id"] for r in st["reviews"]] == [ids[1], ids[0]] and st["reviews"][0]["feedback"] == "Sovuq edi"
+
+            hist = await (await client.get("/api/admin/orders?tab=done", headers=tma())).json()
+            rated = {o["id"]: (o["rating"], o["feedback"]) for o in hist["orders"]}
+            assert rated[ids[1]] == (2, "Sovuq edi")
         finally:
             await close(client, ctx)
     run(go())

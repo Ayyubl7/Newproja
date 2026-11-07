@@ -49,7 +49,7 @@ class StatsAccess(BaseFilter):
 
     async def __call__(self, message: Message, ctx: AppContext) -> bool:
         uid = message.from_user.id if message.from_user else None
-        return message.chat.id == ctx.settings.admin_chat_id or ctx.is_full_admin(uid)
+        return message.chat.id in ctx.staff_chats() or ctx.is_full_admin(uid)
 
 
 class IsPanelAdmin(BaseFilter):
@@ -165,14 +165,17 @@ async def cmd_help(message: Message, ctx: AppContext) -> None:
 @admin_cmds.message(Command("active"))
 async def cmd_active(message: Message, ctx: AppContext) -> None:
     lang = ctx.settings.admin_lang
-    orders = await ctx.db.active_orders()
+    branch = ctx.branch_for_chat(message.chat.id)
+    orders = await ctx.db.active_orders(branch["id"] if branch else None)
     if not orders:
         await message.answer(at(lang, "active_none"))
         return
     blocks = [at(lang, "active_title")]
     for o in orders[:30]:
+        b = None if branch else ctx.catalog.branch(o.get("branch_id"))
+        where = f" · 🏪 {escape(b['name'].get(lang) or b['id'])}" if b else ""
         blocks.append(
-            f"<b>#{o['id']}</b> · {t(lang, 'st_' + o['status'])} · {t(lang, 'type_' + o['type'])}\n"
+            f"<b>#{o['id']}</b> · {t(lang, 'st_' + o['status'])} · {t(lang, 'type_' + o['type'])}{where}\n"
             f"📞 {escape(o['phone'])} · {fmt_money(o['total'], lang)}\n{item_lines(o['items'], lang)}"
         )
     await message.answer("\n\n".join(blocks))

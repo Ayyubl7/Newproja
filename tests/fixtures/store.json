@@ -16,7 +16,10 @@
     "ru": "г. Ташкент (впишите адрес сюда)"
   },
   "location": null,
-  "hours": { "open": "10:00", "close": "02:00" },
+  "hours": {
+    "open": "00:00",
+    "close": "00:00"
+  },
   "delivery": {
     "enabled": true,
     "fee": 10000,
@@ -29,8 +32,6 @@
     "eta": "15–20"
   },
   "payments": {
-    "cash": true,
-    "click": false,
-    "payme": false
+    "cash": true
   }
 }

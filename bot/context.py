@@ -57,7 +57,20 @@ class AppContext:
         """Buyurtma tugmalari va guruh buyruqlari: panel adminlari yoki admin guruhi a'zolari."""
         if self.is_panel_admin(user_id):
             return True
-        return chat_id is not None and chat_id != 0 and chat_id == self.settings.admin_chat_id
+        return chat_id is not None and chat_id != 0 and chat_id in self.staff_chats()
+
+    def branch_for_chat(self, chat_id: int | None) -> dict | None:
+        """Filialning o'z guruhi bo'lsa — o'sha filial (guruhda faqat o'z buyurtmalari ko'rinadi)."""
+        if not chat_id:
+            return None
+        return next((b for b in self.catalog.branches if b.get("chat_id") == chat_id), None)
+
+    def staff_chats(self) -> set[int]:
+        """Xodimlar guruhlari: umumiy ADMIN_CHAT_ID va filiallarning o'z guruhlari."""
+        chats = {b["chat_id"] for b in self.catalog.branches if b.get("chat_id")}
+        if self.settings.admin_chat_id:
+            chats.add(self.settings.admin_chat_id)
+        return chats
 
     async def reload_admins(self) -> None:
         self.extra_admins = {a["user_id"]: a["role"] if a["role"] in ROLES else "admin"

@@ -33,8 +33,6 @@ from .catalog import (
     ICONS,
     MAX_VARIANTS,
     parse_variants,
-    PAYMENT_METHODS,
-    LIVE_PAYMENT_METHODS,
     _merge,
     banner_active,
     normalize_store,
@@ -656,18 +654,13 @@ def _validate_store(s: dict[str, Any]) -> dict[str, Any]:
     }
     if not out["delivery"]["enabled"] and not out["pickup"]["enabled"]:
         raise _bad("delivery", "need_one_type")
-    pays = s.get("payments") or {}
-    if not isinstance(pays, dict):
-        raise _bad("payments")
-    out["payments"] = {m: bool(pays.get(m)) and m in LIVE_PAYMENT_METHODS for m in PAYMENT_METHODS}
-    if not any(out["payments"].values()):
-        raise _bad("payments", "need_one_payment")
+    out["payments"] = {"cash": True}  # faqat naqd pul
     return out
 
 
 @admin_route(cashier=True)
 async def get_store(request: web.Request, ctx: AppContext) -> web.Response:
-    return ok(store=ctx.catalog.store, live_payments=list(LIVE_PAYMENT_METHODS))
+    return ok(store=ctx.catalog.store)
 
 
 @admin_route(cashier=True)
@@ -681,10 +674,92 @@ async def patch_store(request: web.Request, ctx: AppContext) -> web.Response:
     return ok(store=ctx.catalog.store)
 
 
+# =====================================================================  filiallar
+def v_coords(body: dict) -> tuple[float | None, float | None]:
+    lat, lon = body.get("lat"), body.get("lon")
+    if lat in (None, "") and lon in (None, ""):
+        return None, None
+    for v in (lat, lon):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+            raise _bad("location")
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise _bad("location")
+    return round(float(lat), 6), round(float(lon), 6)
+
+
+def _parse_branch(body: dict, partial: bool) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    if not partial or "name_uz" in body:
+        out["name_uz"] = v_str(body, "name_uz", 40, required=True)
+    for key, n in (("name_ru", 40), ("address_uz", 200), ("address_ru", 200), ("phone", 30)):
+        if key in body:
+            out[key] = v_str(body, key, n)
+    for key in ("open", "close"):
+        if key in body:
+            if not HHMM_RE.match(str(body[key] or "")):
+                raise _bad(key)
+            out[key] = body[key]
+    if "lat" in body or "lon" in body:
+        out["lat"], out["lon"] = v_coords(body)
+    if "chat_id" in body:
+        out["chat_id"] = v_int(body, "chat_id", -(10 ** 15), 10 ** 15, nullable=True) or None
+    if "active" in body:
+        out["active"] = v_bool(body, "active")
+    return out
+
+
+def _branch_out(ctx: AppContext, r: dict[str, Any]) -> dict[str, Any]:
+    b = {**r, "active": bool(r["active"])}
+    b["is_open"] = ctx.catalog.branch_open({"hours": {"open": r["open"], "close": r["close"]}})
+    return b
+
+
+@admin_route(cashier=True)
+async def list_branches(request: web.Request, ctx: AppContext) -> web.Response:
+    return ok(branches=[_branch_out(ctx, r) for r in await ctx.db.list_branches()])
+
+
+@admin_route
+async def create_branch(request: web.Request, ctx: AppContext) -> web.Response:
+    data = _parse_branch(await _json(request), partial=False)
+    branch_id = "b" + secrets.token_hex(3)
+    await ctx.db.create_branch(branch_id, data)
+    await ctx.reload_catalog()
+    return ok(branch=_branch_out(ctx, await ctx.db.get_branch(branch_id)))
+
+
+@admin_route
+async def update_branch(request: web.Request, ctx: AppContext) -> web.Response:
+    branch_id = request.match_info["id"]
+    if not await ctx.db.get_branch(branch_id):
+        raise ApiError(404, "not_found")
+    await ctx.db.update_branch(branch_id, _parse_branch(await _json(request), partial=True))
+    await ctx.reload_catalog()
+    return ok(branch=_branch_out(ctx, await ctx.db.get_branch(branch_id)))
+
+
+@admin_route
+async def delete_branch(request: web.Request, ctx: AppContext) -> web.Response:
+    branch_id = request.match_info["id"]
+    if not await ctx.db.get_branch(branch_id):
+        raise ApiError(404, "not_found")
+    if await ctx.db.active_orders(branch_id):
+        raise ApiError(409, "branch_has_orders")
+    await ctx.db.delete_branch(branch_id)
+    await ctx.reload_catalog()
+    return ok()
+
+
+reorder_branches = admin_route(_reorder("branches", lambda ctx, i: ctx.db.get_branch(str(i))))
+
+
 # =====================================================================  buyurtmalar
-def _order_out(o: dict[str, Any], users: dict[int, dict[str, Any]]) -> dict[str, Any]:
+def _order_out(o: dict[str, Any], users: dict[int, dict[str, Any]], ctx: AppContext) -> dict[str, Any]:
     u = users.get(o["user_id"]) or {}
+    branch = ctx.catalog.branch(o.get("branch_id"))
     return {
+        "branch_id": o.get("branch_id"), "branch": branch["name"] if branch else None,
+        "rating": o.get("rating"), "feedback": o.get("feedback") or "",
         "id": o["id"], "status": o["status"], "type": o["type"], "items": o["items"],
         "subtotal": o["subtotal"], "delivery_fee": o["delivery_fee"], "total": o["total"],
         "address": o["address"], "lat": o["lat"], "lon": o["lon"], "phone": o["phone"], "name": o["name"],
@@ -700,17 +775,19 @@ async def list_orders(request: web.Request, ctx: AppContext) -> web.Response:
     tab = request.query.get("tab", "active")
     q = request.query.get("q", "").strip()[:40]
     before = request.query.get("before", "")
+    branch = request.query.get("branch", "")[:20] or None
     if tab == "active" and not q:
-        orders, more = await ctx.db.active_orders(), False
+        orders, more = await ctx.db.active_orders(branch), False
     else:
         statuses = {
             "active": ACTIVE_STATUSES, "done": ("done",), "cancelled": ("cancelled",),
         }.get(tab, ("done", "cancelled") if not q else ACTIVE_STATUSES + ("done", "cancelled"))
-        orders = await ctx.db.search_orders(statuses, q, int(before) if before.isdigit() else None, limit=31)
+        orders = await ctx.db.search_orders(statuses, q, int(before) if before.isdigit() else None, limit=31,
+                                            branch_id=branch)
         more = len(orders) > 30
         orders = orders[:30]
     users = await ctx.db.users_by_ids(list({o["user_id"] for o in orders}))
-    return ok(orders=[_order_out(o, users) for o in orders], has_more=more)
+    return ok(orders=[_order_out(o, users, ctx) for o in orders], has_more=more)
 
 
 @admin_route(cashier=True)
@@ -724,11 +801,11 @@ async def set_order_status(request: web.Request, ctx: AppContext) -> web.Respons
         raise ApiError(404, "not_found")
     users = await ctx.db.users_by_ids([order["user_id"]])
     if not success:
-        raise ApiError(409, "stale", order=_order_out(order, users))
+        raise ApiError(409, "stale", order=_order_out(order, users, ctx))
     by = await _admin_display_name(request, ctx)
     spawn(sync_admin_message(ctx, order, by))
     spawn(notify_user_status(ctx, order))
-    return ok(order=_order_out(order, users))
+    return ok(order=_order_out(order, users, ctx))
 
 
 # =====================================================================  statistika
@@ -763,8 +840,38 @@ async def stats(request: web.Request, ctx: AppContext) -> web.Response:
             h = local_time(o["created_at"]).hour
             hours[h] = hours.get(h, 0) + 1
 
+    rated = [o for o in orders if o.get("rating")]
+    by_branch: dict[str, dict[str, Any]] = {}
+    for o in orders:
+        if o["status"] == "cancelled":
+            continue
+        row = by_branch.setdefault(o.get("branch_id") or "", {"orders": 0, "revenue": 0, "ratings": []})
+        row["orders"] += 1
+        if o["status"] == "done":
+            row["revenue"] += o["total"]
+        if o.get("rating"):
+            row["ratings"].append(o["rating"])
+    branches = []
+    for bid, row in by_branch.items():
+        b = ctx.catalog.branch(bid)
+        branches.append({
+            "id": bid, "name": b["name"] if b else None, "orders": row["orders"], "revenue": row["revenue"],
+            "rating": round(sum(row["ratings"]) / len(row["ratings"]), 1) if row["ratings"] else None,
+        })
+    reviews = [{
+        "id": o["id"], "rating": o["rating"], "feedback": o.get("feedback") or "", "name": o.get("name") or "",
+        "date": local_time(o["created_at"]).strftime("%d.%m %H:%M"),
+    } for o in sorted(rated, key=lambda o: -o["id"])[:10]]
+
     return ok(
         days=days,
+        rating={
+            "avg": round(sum(o["rating"] for o in rated) / len(rated), 1) if rated else None,
+            "count": len(rated),
+            "dist": [sum(1 for o in rated if o["rating"] == n) for n in range(1, 6)],
+        },
+        branches=sorted(branches, key=lambda r: -r["orders"]),
+        reviews=reviews,
         totals={
             "orders": sum(1 for o in orders if o["status"] != "cancelled"),
             "done": len(done),
@@ -884,6 +991,11 @@ def setup_admin_routes(app: web.Application) -> None:
     r.add_post("/api/admin/banners/reorder", reorder_banners)
     r.add_patch("/api/admin/banners/{id}", update_banner)
     r.add_delete("/api/admin/banners/{id}", delete_banner)
+    r.add_get("/api/admin/branches", list_branches)
+    r.add_post("/api/admin/branches", create_branch)
+    r.add_post("/api/admin/branches/reorder", reorder_branches)
+    r.add_patch("/api/admin/branches/{id}", update_branch)
+    r.add_delete("/api/admin/branches/{id}", delete_branch)
     r.add_get("/api/admin/store", get_store)
     r.add_patch("/api/admin/store", patch_store)
     r.add_get("/api/admin/orders", list_orders)

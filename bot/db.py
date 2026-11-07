@@ -109,6 +109,22 @@ CREATE TABLE IF NOT EXISTS admins (
     role       TEXT NOT NULL DEFAULT 'admin',
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS branches (
+    id          TEXT PRIMARY KEY,
+    name_uz     TEXT NOT NULL,
+    name_ru     TEXT NOT NULL DEFAULT '',
+    address_uz  TEXT NOT NULL DEFAULT '',
+    address_ru  TEXT NOT NULL DEFAULT '',
+    phone       TEXT NOT NULL DEFAULT '',
+    open        TEXT NOT NULL DEFAULT '00:00',
+    close       TEXT NOT NULL DEFAULT '00:00',
+    lat         REAL,
+    lon         REAL,
+    chat_id     INTEGER,
+    active      INTEGER NOT NULL DEFAULT 1,
+    sort        INTEGER NOT NULL DEFAULT 0
+);
 """
 
 # Buyurtma raqamlari 1001 dan boshlansin
@@ -118,6 +134,10 @@ CATEGORY_FIELDS = ("name_uz", "name_ru", "icon", "sort", "visible")
 PRODUCT_FIELDS = (
     "category_id", "name_uz", "name_ru", "desc_uz", "desc_ru", "price", "promo_price", "promo_from",
     "promo_to", "image", "badge", "available", "visible", "sort", "variants",
+)
+BRANCH_FIELDS = (
+    "name_uz", "name_ru", "address_uz", "address_ru", "phone", "open", "close", "lat", "lon",
+    "chat_id", "active", "sort",
 )
 BANNER_FIELDS = (
     "title_uz", "title_ru", "text_uz", "text_ru", "image", "link_type", "link_id",
@@ -165,9 +185,16 @@ class Database:
             await self.conn.execute("ALTER TABLE products ADD COLUMN variants TEXT")
         cur = await self.conn.execute("PRAGMA table_info(users)")
         user_cols = {r[1] for r in await cur.fetchall()}
-        for col, decl in (("last_lat", "REAL"), ("last_lon", "REAL"), ("pref_type", "TEXT")):
+        for col, decl in (("last_lat", "REAL"), ("last_lon", "REAL"), ("pref_type", "TEXT"), ("name", "TEXT"),
+                          ("branch_id", "TEXT")):
             if col not in user_cols:
                 await self.conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
+        cur = await self.conn.execute("PRAGMA table_info(orders)")
+        order_cols = {r[1] for r in await cur.fetchall()}
+        for col, decl in (("branch_id", "TEXT"), ("admin_chat_id", "INTEGER"), ("rating", "INTEGER"),
+                          ("feedback", "TEXT")):
+            if col not in order_cols:
+                await self.conn.execute(f"ALTER TABLE orders ADD COLUMN {col} {decl}")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -196,7 +223,8 @@ class Database:
         return await self._one("SELECT * FROM users WHERE id=?", (user_id,))
 
     async def set_user_field(self, user_id: int, field: str, value: Any) -> None:
-        if field not in ("lang", "phone", "last_address", "first_name", "last_lat", "last_lon", "pref_type"):
+        if field not in ("lang", "phone", "last_address", "first_name", "last_lat", "last_lon", "pref_type", "name",
+                         "branch_id"):
             raise ValueError(field)
         await self.conn.execute(
             f"INSERT INTO users(id, {field}, created_at) VALUES (?, ?, ?) "
@@ -215,6 +243,16 @@ class Database:
             "ON CONFLICT(id) DO UPDATE SET last_lat=excluded.last_lat, last_lon=excluded.last_lon, "
             "last_address=excluded.last_address, pref_type='delivery'",
             (user_id, lat, lon, address, _now()),
+        )
+        await self.conn.commit()
+
+    async def set_typed_address(self, user_id: int, address: str) -> None:
+        """Lokatsiyasiz, matn bilan yozilgan manzil (masalan, kompyuterdan)."""
+        await self.conn.execute(
+            "INSERT INTO users(id, last_address, pref_type, created_at) VALUES (?, ?, 'delivery', ?) "
+            "ON CONFLICT(id) DO UPDATE SET last_address=excluded.last_address, last_lat=NULL, last_lon=NULL, "
+            "pref_type='delivery'",
+            (user_id, address, _now()),
         )
         await self.conn.commit()
 
@@ -238,13 +276,13 @@ class Database:
         now = _now()
         cur = await self.conn.execute(
             """INSERT INTO orders(user_id, items, subtotal, delivery_fee, total, type, address, lat, lon,
-                                  phone, name, comment, payment, lang, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)""",
+                                  phone, name, comment, payment, lang, branch_id, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?)""",
             (
                 data["user_id"], json.dumps(data["items"], ensure_ascii=False), data["subtotal"],
                 data["delivery_fee"], data["total"], data["type"], data.get("address"),
                 data.get("lat"), data.get("lon"), data["phone"], data.get("name"),
-                data.get("comment"), data["payment"], data["lang"], now, now,
+                data.get("comment"), data["payment"], data["lang"], data.get("branch_id"), now, now,
             ),
         )
         await self.conn.commit()
@@ -267,20 +305,75 @@ class Database:
         await self.conn.commit()
         return cur.rowcount == 1
 
-    async def set_admin_message(self, order_id: int, message_id: int) -> None:
-        await self.conn.execute("UPDATE orders SET admin_message_id=? WHERE id=?", (message_id, order_id))
+    async def set_admin_message(self, order_id: int, message_id: int, chat_id: int | None = None) -> None:
+        await self.conn.execute("UPDATE orders SET admin_message_id=?, admin_chat_id=? WHERE id=?",
+                                (message_id, chat_id, order_id))
         await self.conn.commit()
 
-    async def active_orders(self) -> list[dict[str, Any]]:
-        rows = await self._all(
-            "SELECT * FROM orders WHERE status IN ('new','accepted','on_the_way','ready') ORDER BY id"
+    async def set_rating(self, order_id: int, user_id: int, rating: int) -> bool:
+        """Faqat buyurtma egasi, faqat yetkazilgan buyurtmaga va faqat bir marta baho qo'yadi."""
+        cur = await self.conn.execute(
+            "UPDATE orders SET rating=? WHERE id=? AND user_id=? AND rating IS NULL AND status='done'",
+            (rating, order_id, user_id))
+        await self.conn.commit()
+        return cur.rowcount == 1
+
+    async def set_feedback(self, order_id: int, user_id: int, text: str) -> bool:
+        cur = await self.conn.execute(
+            "UPDATE orders SET feedback=? WHERE id=? AND user_id=? AND rating IS NOT NULL AND feedback IS NULL",
+            (text, order_id, user_id))
+        await self.conn.commit()
+        return cur.rowcount == 1
+
+    async def cancel_by_customer(self, order_id: int, user_id: int) -> bool:
+        """Mijoz o'zi bekor qiladi — faqat hali qabul qilinmagan («new») buyurtmani."""
+        cur = await self.conn.execute(
+            "UPDATE orders SET status='cancelled', updated_at=? WHERE id=? AND user_id=? AND status='new'",
+            (_now(), order_id, user_id))
+        await self.conn.commit()
+        return cur.rowcount == 1
+
+    # ---------- branches ----------
+    async def list_branches(self) -> list[dict[str, Any]]:
+        return await self._all("SELECT * FROM branches ORDER BY sort, rowid")
+
+    async def get_branch(self, branch_id: str) -> dict[str, Any] | None:
+        return await self._one("SELECT * FROM branches WHERE id=?", (branch_id,))
+
+    async def create_branch(self, branch_id: str, data: dict[str, Any]) -> None:
+        if "sort" not in data:
+            cur = await self.conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 FROM branches")
+            data = {**data, "sort": (await cur.fetchone())[0]}
+        cols = [f for f in BRANCH_FIELDS if f in data]
+        await self.conn.execute(
+            f"INSERT INTO branches(id, {', '.join(cols)}) VALUES (?, {', '.join('?' * len(cols))})",
+            (branch_id, *[_db_value(data[c]) for c in cols]),
         )
+        await self.conn.commit()
+
+    async def update_branch(self, branch_id: str, data: dict[str, Any]) -> None:
+        await self._update("branches", "id", branch_id, data, BRANCH_FIELDS)
+
+    async def delete_branch(self, branch_id: str) -> None:
+        await self.conn.execute("DELETE FROM branches WHERE id=?", (branch_id,))
+        await self.conn.commit()
+
+    async def active_orders(self, branch_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT * FROM orders WHERE status IN ('new','accepted','on_the_way','ready')"
+        params: tuple[Any, ...] = ()
+        if branch_id:
+            sql += " AND branch_id = ?"
+            params = (branch_id,)
+        rows = await self._all(sql + " ORDER BY id", params)
         return [_order_row(r) for r in rows]
 
     async def search_orders(self, statuses: tuple[str, ...], query: str = "", before_id: int | None = None,
-                            limit: int = 30) -> list[dict[str, Any]]:
+                            limit: int = 30, branch_id: str | None = None) -> list[dict[str, Any]]:
         where = [f"status IN ({','.join('?' * len(statuses))})"]
         params: list[Any] = list(statuses)
+        if branch_id:
+            where.append("branch_id = ?")
+            params.append(branch_id)
         if query:
             digits = "".join(c for c in query if c.isdigit())
             phone_sql = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'+',''),'(',''),')','') LIKE ?"
@@ -382,7 +475,7 @@ class Database:
         await self.conn.commit()
 
     async def reorder(self, table: str, ids: list[Any]) -> None:
-        if table not in ("categories", "products", "banners"):
+        if table not in ("categories", "products", "banners", "branches"):
             raise ValueError(table)
         await self.conn.executemany(f"UPDATE {table} SET sort=? WHERE id=?", [(i, v) for i, v in enumerate(ids)])
         await self.conn.commit()

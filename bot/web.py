@@ -13,7 +13,8 @@ from aiogram.utils.web_app import WebAppUser, safe_parse_webapp_init_data
 from .catalog import PAYMENT_METHODS, OrderError
 from .config import WEBAPP_DIR
 from .context import AppContext, spawn
-from .orders import announce_new_order
+from .db import local_time
+from .orders import announce_new_order, customer_cancelled
 from .texts import norm_lang
 
 log = logging.getLogger(__name__)
@@ -65,7 +66,8 @@ async def api_bootstrap(request: web.Request) -> web.Response:
         "banners": ctx.catalog.public_banners(),
         "profile": {
             "lang": norm_lang(lang),
-            "name": profile.get("first_name") or user.first_name or "",
+            "name": profile.get("name") or profile.get("first_name") or user.first_name or "",
+            "branch_id": profile.get("branch_id") or "",
             "phone": profile.get("phone") or "",
             "address": profile.get("last_address") or "",
             "lat": profile.get("last_lat"),
@@ -127,7 +129,10 @@ async def api_order(request: web.Request) -> web.Response:
     profile = await ctx.db.get_user(user.id) or {}
     lang = norm_lang(body.get("lang") or profile.get("lang"))
     order_type = body.get("type")
-    payment = body.get("payment", "cash")
+    payment = body.get("payment") or "cash"
+    branch_id = body.get("branch_id") or None
+    if branch_id is not None and not isinstance(branch_id, str):
+        raise ApiError(400, "bad_request")
     phone = _clean_str(body.get("phone"), 24)
     name = _clean_str(body.get("name"), 64) or user.first_name or ""
     address = _clean_str(body.get("address"), 300)
@@ -138,7 +143,7 @@ async def api_order(request: web.Request) -> web.Response:
         raise ApiError(409, "paused")
     if not ctx.catalog.is_open():
         raise ApiError(409, "closed")
-    if payment not in PAYMENT_METHODS or not ctx.catalog.store.get("payments", {}).get(payment):
+    if payment not in PAYMENT_METHODS:
         raise ApiError(400, "payment_unavailable")
     if not PHONE_RE.match(phone) or not 9 <= sum(c.isdigit() for c in phone) <= 15:
         raise ApiError(400, "bad_phone")
@@ -155,8 +160,9 @@ async def api_order(request: web.Request) -> web.Response:
 
     try:
         quote = ctx.catalog.quote(body.get("items"), order_type)
+        branch = ctx.catalog.pick_branch(order_type, branch_id, lat, lon)
     except OrderError as e:
-        raise ApiError(400, e.code, **e.details) from None
+        raise ApiError(409 if e.code in ("closed", "branch_closed") else 400, e.code, **e.details) from None
 
     now = time.monotonic()
     last = _last_order_at.get(user.id)
@@ -179,22 +185,64 @@ async def api_order(request: web.Request) -> web.Response:
         "comment": comment or None,
         "payment": payment,
         "lang": lang,
+        "branch_id": branch["id"] if branch else None,
     })
     await ctx.db.upsert_user(user.id, profile.get("first_name") or user.first_name, user.username)
     await ctx.db.set_user_field(user.id, "phone", phone)
+    if name and name != profile.get("name"):
+        await ctx.db.set_user_field(user.id, "name", name)
+    if order_type == "pickup" and branch:
+        await ctx.db.set_user_field(user.id, "branch_id", branch["id"])
     if not profile.get("lang"):
         await ctx.db.set_user_field(user.id, "lang", lang)
-    if lat is not None:
-        # Telegram'dan kelgan lokatsiya profilda allaqachon bor — manzilni podyezd/qavat bilan ustidan yozmaymiz
-        if (profile.get("last_lat"), profile.get("last_lon")) != (lat, lon):
-            await ctx.db.set_location(user.id, lat, lon, address)
-    elif address:
-        await ctx.db.set_user_field(user.id, "last_address", address)
+    if order_type == "delivery":
+        if lat is not None:
+            # Telegram'dan kelgan lokatsiya profilda allaqachon bor — manzilni podyezd/qavat bilan ustidan yozmaymiz
+            if (profile.get("last_lat"), profile.get("last_lon")) != (lat, lon):
+                await ctx.db.set_location(user.id, lat, lon, address)
+        elif address != profile.get("last_address") or profile.get("last_lat") is not None:
+            await ctx.db.set_typed_address(user.id, address)
+    # keyingi safar bot va Mini App shu turni (va filialni) taklif qiladi
+    await ctx.db.set_user_field(user.id, "pref_type", order_type)
 
     # Telegram'ga yuborish fonda — mijoz javobni darhol oladi
     spawn(announce_new_order(ctx, order_id))
     log.info("Yangi buyurtma #%s: user=%s total=%s", order_id, user.id, quote.total)
-    return web.json_response({"ok": True, "order": {"id": order_id, "total": quote.total}})
+    return web.json_response({"ok": True, "order": {
+        "id": order_id, "total": quote.total, "branch": branch["name"] if branch else None,
+    }})
+
+
+def my_order_out(ctx: AppContext, o: dict[str, Any]) -> dict[str, Any]:
+    branch = ctx.catalog.branch(o.get("branch_id"))
+    return {
+        "id": o["id"], "status": o["status"], "type": o["type"], "items": o["items"],
+        "subtotal": o["subtotal"], "delivery_fee": o["delivery_fee"], "total": o["total"],
+        "address": o.get("address") or "", "branch": branch["name"] if branch else None,
+        "time": local_time(o["created_at"]).strftime("%d.%m.%Y %H:%M"),
+        "rating": o.get("rating"), "can_cancel": o["status"] == "new",
+    }
+
+
+async def api_my_orders(request: web.Request) -> web.Response:
+    ctx = request.app[CTX_KEY]
+    user = _auth(request)
+    orders = await ctx.db.user_orders(user.id, limit=20)
+    return web.json_response({"ok": True, "orders": [my_order_out(ctx, o) for o in orders]})
+
+
+async def api_cancel_order(request: web.Request) -> web.Response:
+    ctx = request.app[CTX_KEY]
+    user = _auth(request)
+    raw = request.match_info["id"]
+    order = await ctx.db.get_order(int(raw)) if raw.isdigit() else None
+    if order is None or order["user_id"] != user.id:
+        raise ApiError(404, "not_found")
+    if not await ctx.db.cancel_by_customer(order["id"], user.id):
+        raise ApiError(409, "cannot_cancel", order=my_order_out(ctx, await ctx.db.get_order(order["id"])))
+    order = await ctx.db.get_order(order["id"])
+    spawn(customer_cancelled(ctx, order))
+    return web.json_response({"ok": True, "order": my_order_out(ctx, order)})
 
 
 async def health(_: web.Request) -> web.Response:
@@ -234,6 +282,8 @@ def build_web_app(ctx: AppContext) -> web.Application:
     app.router.add_get("/api/bootstrap", api_bootstrap)
     app.router.add_post("/api/order", api_order)
     app.router.add_post("/api/request-location", api_request_location)
+    app.router.add_get("/api/my-orders", api_my_orders)
+    app.router.add_post("/api/my-orders/{id}/cancel", api_cancel_order)
     app.router.add_static("/static/", WEBAPP_DIR, show_index=False)
     ctx.settings.upload_dir.mkdir(parents=True, exist_ok=True)
     app.router.add_static("/media/", ctx.settings.upload_dir, show_index=False)

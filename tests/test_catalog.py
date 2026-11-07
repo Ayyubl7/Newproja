@@ -76,7 +76,7 @@ def test_stoplist_blocks_product(catalog):
 
 
 def test_hours_across_midnight(catalog):
-    catalog.store["hours"] = {"open": "10:00", "close": "02:00"}
+    catalog.branches[0]["hours"] = {"open": "10:00", "close": "02:00"}
     assert catalog.is_open(at(10, 0))
     assert catalog.is_open(at(23, 59))
     assert catalog.is_open(at(1, 59))
@@ -85,7 +85,7 @@ def test_hours_across_midnight(catalog):
 
 
 def test_hours_same_day(catalog):
-    catalog.store["hours"] = {"open": "09:00", "close": "22:00"}
+    catalog.branches[0]["hours"] = {"open": "09:00", "close": "22:00"}
     assert catalog.is_open(at(12))
     assert not catalog.is_open(at(22, 30))
 
@@ -123,7 +123,7 @@ def test_promo_dates():
 
 
 def test_paused_store_is_closed(catalog):
-    catalog.store["hours"] = {"open": "00:00", "close": "00:00"}
+    catalog.branches[0]["hours"] = {"open": "00:00", "close": "00:00"}
     assert catalog.is_open()
     catalog.store["accepting"] = False
     assert not catalog.is_open() and catalog.public_store()["paused"]

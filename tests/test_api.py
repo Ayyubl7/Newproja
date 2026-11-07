@@ -253,3 +253,89 @@ def test_delivery_with_telegram_location_only(tmp_path):
         finally:
             await _close(client, ctx)
     run(go())
+
+
+def test_branches_in_order_api(tmp_path):
+    from datetime import datetime, timedelta
+
+    from bot.catalog import TASHKENT_TZ
+
+    async def go():
+        client, ctx = await _client(tmp_path, [])
+        try:
+            now = datetime.now(TASHKENT_TZ)
+            later = (now + timedelta(hours=2)).strftime("%H:%M"), (now + timedelta(hours=3)).strftime("%H:%M")
+            await ctx.db.create_branch("late", {"name_uz": "Kechki", "open": later[0], "close": later[1]})
+            await ctx.db.create_branch("north", {"name_uz": "Shimoliy", "open": "00:00", "close": "00:00",
+                                                 "lat": 41.35, "lon": 69.3})
+            await ctx.reload_catalog()
+
+            r = await client.post("/api/order", json={**ORDER, "type": "pickup", "branch_id": "late"}, headers=auth())
+            assert r.status == 409 and (await r.json())["error"] == "branch_closed"
+            r = await client.post("/api/order", json={**ORDER, "branch_id": "nope"}, headers=auth())
+            assert r.status == 400 and (await r.json())["error"] == "bad_branch"
+            r = await client.post("/api/order", json={**ORDER, "payment": "card"}, headers=auth())
+            assert r.status == 400 and (await r.json())["error"] == "payment_unavailable"
+
+            # olib ketish — tanlangan filial; ism, tur va filial profilda eslab qolinadi
+            r = await client.post("/api/order", json={**ORDER, "type": "pickup", "branch_id": "north", "name": "Vali"},
+                                  headers=auth())
+            body = await r.json()
+            assert r.status == 200 and body["order"]["branch"]["uz"] == "Shimoliy"
+            assert (await ctx.db.get_order(body["order"]["id"]))["branch_id"] == "north"
+            boot = await (await client.get("/api/bootstrap", headers=auth())).json()
+            prof = boot["profile"]
+            assert (prof["name"], prof["branch_id"], prof["type"]) == ("Vali", "north", "pickup")
+            assert [b["id"] for b in boot["store"]["branches"]] == ["main", "late", "north"]
+            assert [b["is_open"] for b in boot["store"]["branches"]] == [True, False, True]
+            assert boot["store"]["payments"] == {"cash": True}
+
+            # yetkazib berish — koordinatasi bor eng yaqin ochiq filial
+            web_module._last_order_at.clear()
+            r = await client.post("/api/order", json=ORDER, headers=auth())
+            assert (await ctx.db.get_order((await r.json())["order"]["id"]))["branch_id"] == "north"
+            assert (await ctx.db.get_user(42))["pref_type"] == "delivery"
+
+            # yozilgan manzil (lokatsiyasiz) profilga saqlanadi, eski nuqta o'chadi
+            web_module._last_order_at.clear()
+            r = await client.post("/api/order", json={**ORDER, "lat": None, "lon": None, "address": "Navoiy ko'chasi 5"},
+                                  headers=auth())
+            assert r.status == 200
+            u = await ctx.db.get_user(42)
+            assert (u["last_address"], u["last_lat"]) == ("Navoiy ko'chasi 5", None)
+        finally:
+            await _close(client, ctx)
+    run(go())
+
+
+def test_my_orders_and_customer_cancel(tmp_path, monkeypatch):
+    async def go():
+        client, ctx = await _client(tmp_path, [])
+        cancelled = []
+
+        async def fake_cancelled(_ctx, order):
+            cancelled.append(order["id"])
+
+        monkeypatch.setattr(web_module, "customer_cancelled", fake_cancelled)
+        try:
+            r = await client.post("/api/order", json=ORDER, headers=auth())
+            oid = (await r.json())["order"]["id"]
+            orders = (await (await client.get("/api/my-orders", headers=auth())).json())["orders"]
+            assert [o["id"] for o in orders] == [oid]
+            assert orders[0]["can_cancel"] and orders[0]["items"][0]["id"] == "classic"
+            assert orders[0]["branch"]["uz"] == "Ayva Burgers"
+
+            # boshqa mijoz ko'rmaydi va bekor qilolmaydi
+            assert (await (await client.get("/api/my-orders", headers=auth(43))).json())["orders"] == []
+            assert (await client.post(f"/api/my-orders/{oid}/cancel", headers=auth(43))).status == 404
+            assert (await client.get("/api/my-orders")).status == 401
+
+            r = await client.post(f"/api/my-orders/{oid}/cancel", headers=auth())
+            assert r.status == 200 and (await r.json())["order"]["status"] == "cancelled"
+            await asyncio.sleep(0.01)
+            assert cancelled == [oid]
+            r = await client.post(f"/api/my-orders/{oid}/cancel", headers=auth())
+            assert r.status == 409 and (await r.json())["error"] == "cannot_cancel"
+        finally:
+            await _close(client, ctx)
+    run(go())

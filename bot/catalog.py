@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
@@ -13,9 +14,8 @@ TASHKENT_TZ = timezone(timedelta(hours=5), name="Asia/Tashkent")
 MAX_QTY_PER_ITEM = 50
 MAX_LINES = 40
 ORDER_TYPES = ("delivery", "pickup")
-PAYMENT_METHODS = ("cash", "click", "payme")
-# Hozircha faqat naqd. Click/Payme ulanmaguncha yoqib bo'lmaydi.
-LIVE_PAYMENT_METHODS = ("cash",)
+# To'lov — faqat naqd pul (kuryerga yoki kassada).
+PAYMENT_METHODS = ("cash",)
 BADGES = ("", "hit", "new", "spicy")
 ICONS = ("burger", "pizza", "combo", "hotdog", "fries", "sauce", "drink", "wrap", "chicken", "dessert")
 MAX_VARIANTS = 12
@@ -33,7 +33,7 @@ DEFAULT_STORE: dict[str, Any] = {
     "accepting": True,
     "delivery": {"enabled": True, "fee": 0, "free_from": 0, "min_order": 0, "eta": ""},
     "pickup": {"enabled": True, "min_order": 0, "eta": ""},
-    "payments": {"cash": True, "click": False, "payme": False},
+    "payments": {"cash": True},
 }
 
 
@@ -87,6 +87,37 @@ def _parse_hhmm(value: str) -> time:
     return time(int(h), int(m))
 
 
+def hours_open(open_s: str | None, close_s: str | None, now: datetime | None = None) -> bool:
+    """Ish vaqti ichidami. open == close — 24/7; close < open — yarim tundan o'tib ishlaydi."""
+    if not open_s or not close_s:
+        return True
+    now = (now or datetime.now(TASHKENT_TZ)).astimezone(TASHKENT_TZ)
+    start, end, cur = _parse_hhmm(open_s), _parse_hhmm(close_s), now.time()
+    if start == end:
+        return True
+    if start < end:
+        return start <= cur < end
+    return cur >= start or cur < end
+
+
+def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = math.radians(lat2 - lat1), math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def branch_from_row(r: dict[str, Any]) -> dict[str, Any]:
+    has_loc = r.get("lat") is not None and r.get("lon") is not None
+    return {
+        "id": r["id"], "name": _i18n(r["name_uz"], r["name_ru"]), "address": _i18n(r["address_uz"], r["address_ru"]),
+        "phone": r.get("phone") or "", "hours": {"open": r["open"], "close": r["close"]},
+        "location": {"lat": r["lat"], "lon": r["lon"]} if has_loc else None,
+        "chat_id": r.get("chat_id"), "active": bool(r.get("active", 1)),
+    }
+
+
 def _merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(base)
     for k, v in (extra or {}).items():
@@ -99,9 +130,8 @@ def _merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
 
 def normalize_store(raw: dict[str, Any] | None) -> dict[str, Any]:
     store = _merge(DEFAULT_STORE, raw or {})
-    for m in PAYMENT_METHODS:
-        if m not in LIVE_PAYMENT_METHODS:
-            store["payments"][m] = False
+    store["payments"] = {"cash": True}
+    store.pop("branches", None)
     return store
 
 
@@ -168,6 +198,7 @@ class Catalog:
     categories: list[dict[str, Any]]
     products: dict[str, dict[str, Any]]
     banners: list[dict[str, Any]] = field(default_factory=list)
+    branches: list[dict[str, Any]] = field(default_factory=list)
 
     # ---------- yuklash ----------
     @classmethod
@@ -176,24 +207,59 @@ class Catalog:
         cats = [category_from_row(r) for r in await db.list_categories()]
         prods = {r["id"]: product_from_row(r) for r in await db.list_products()}
         return cls(store=normalize_store(store), categories=cats, products=prods,
-                   banners=await db.list_banners())
+                   banners=await db.list_banners(),
+                   branches=[branch_from_row(r) for r in await db.list_branches()])
 
     def category(self, cat_id: str) -> dict[str, Any] | None:
         return next((c for c in self.categories if c["id"] == cat_id), None)
 
     # ---------- ish vaqti ----------
+    # ---------- filiallar ----------
+    def active_branches(self) -> list[dict[str, Any]]:
+        return [b for b in self.branches if b["active"]]
+
+    def branch(self, branch_id: str | None) -> dict[str, Any] | None:
+        return next((b for b in self.branches if b["id"] == branch_id), None)
+
+    @staticmethod
+    def branch_open(b: dict[str, Any], now: datetime | None = None) -> bool:
+        return hours_open(b["hours"]["open"], b["hours"]["close"], now)
+
+    def nearest_branch(self, lat: float | None, lon: float | None, now: datetime | None = None,
+                       only_open: bool = True) -> dict[str, Any] | None:
+        pool = [b for b in self.active_branches() if not only_open or self.branch_open(b, now)]
+        if not pool:
+            return None
+        if lat is not None and lon is not None:
+            located = [b for b in pool if b["location"]]
+            if located:
+                return min(located, key=lambda b: distance_km(lat, lon, b["location"]["lat"], b["location"]["lon"]))
+        return pool[0]
+
+    def pick_branch(self, order_type: str, branch_id: str | None = None, lat: float | None = None,
+                    lon: float | None = None, now: datetime | None = None) -> dict[str, Any] | None:
+        """Buyurtmani tayyorlaydigan filial. Filiallar bo'lmasa — None (bitta do'kon rejimi)."""
+        if not self.active_branches():
+            return None
+        if branch_id:
+            b = self.branch(branch_id)
+            if not b or not b["active"]:
+                raise OrderError("bad_branch")
+            if not self.branch_open(b, now):
+                raise OrderError("branch_closed", branch=b["name"])
+            return b
+        b = self.nearest_branch(lat if order_type == "delivery" else None,
+                                lon if order_type == "delivery" else None, now)
+        if b is None:
+            raise OrderError("closed")
+        return b
+
     def within_hours(self, now: datetime | None = None) -> bool:
+        branches = self.active_branches()
+        if branches:
+            return any(self.branch_open(b, now) for b in branches)
         hours = self.store.get("hours") or {}
-        if not hours.get("open") or not hours.get("close"):
-            return True
-        now = (now or datetime.now(TASHKENT_TZ)).astimezone(TASHKENT_TZ)
-        start, end, cur = _parse_hhmm(hours["open"]), _parse_hhmm(hours["close"]), now.time()
-        if start == end:
-            return True  # 24/7
-        if start < end:
-            return start <= cur < end
-        # Yarim tundan o'tib ishlaydi (masalan 10:00–02:00)
-        return cur >= start or cur < end
+        return hours_open(hours.get("open"), hours.get("close"), now)
 
     def is_open(self, now: datetime | None = None) -> bool:
         """Hozir buyurtma qabul qilinadimi: admin to'xtatmagan va ish vaqti."""
@@ -265,7 +331,11 @@ class Catalog:
             "name": s["name"], "tagline": s["tagline"], "phone": s["phone"], "address": s["address"],
             "location": s["location"], "hours": s["hours"],
             "is_open": self.is_open(), "paused": not s.get("accepting", True),
-            "delivery": s["delivery"], "pickup": s["pickup"], "payments": s["payments"],
+            "delivery": s["delivery"], "pickup": s["pickup"], "payments": {"cash": True},
+            "branches": [{
+                "id": b["id"], "name": b["name"], "address": b["address"], "phone": b["phone"],
+                "hours": b["hours"], "location": b["location"], "is_open": self.branch_open(b),
+            } for b in self.active_branches()],
         }
 
     # ---------- hisob-kitob ----------

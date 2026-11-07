@@ -38,7 +38,26 @@ async def ensure_seeded(db: Database, data_dir: Path) -> None:
         log.info("Menyu menu.json'dan bazaga yuklandi: %s kategoriya, %s mahsulot",
                  len(menu["categories"]), len(menu["products"]))
 
+    store_file = json.loads((data_dir / "store.json").read_text(encoding="utf-8"))
     if await db.get_setting("store") is None:
-        store = json.loads((data_dir / "store.json").read_text(encoding="utf-8"))
-        await db.set_setting("store", store)
+        await db.set_setting("store", {k: v for k, v in store_file.items() if k != "branches"})
         log.info("Do'kon sozlamalari store.json'dan bazaga yuklandi")
+
+    if not await db.list_branches():
+        store = await db.get_setting("store") or {}
+        branches = store_file.get("branches") or [{
+            # filiallar ko'rsatilmagan bo'lsa — bitta asosiy filial do'kon ma'lumotlaridan
+            "id": "main", "name": {"uz": store.get("name", "Asosiy"), "ru": store.get("name", "Основной")},
+            "address": store.get("address") or {}, "phone": store.get("phone", ""),
+            "hours": store.get("hours") or {"open": "00:00", "close": "00:00"}, "location": store.get("location"),
+        }]
+        for i, b in enumerate(branches):
+            loc = b.get("location") or {}
+            await db.create_branch(b["id"], {
+                "name_uz": b["name"]["uz"], "name_ru": b["name"].get("ru", ""),
+                "address_uz": (b.get("address") or {}).get("uz", ""), "address_ru": (b.get("address") or {}).get("ru", ""),
+                "phone": b.get("phone", ""), "open": b["hours"]["open"], "close": b["hours"]["close"],
+                "lat": loc.get("lat"), "lon": loc.get("lon"), "chat_id": b.get("chat_id"),
+                "active": True, "sort": i,
+            })
+        log.info("Filiallar bazaga yuklandi: %s ta", len(branches))
