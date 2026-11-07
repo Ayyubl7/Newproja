@@ -117,6 +117,17 @@ docker compose logs -f bot
 
 Baza va rasmlar `ayva-data` docker volume'ida saqlanadi.
 
+### Tez sinov — GitHub Actions'da (bepul, 6 soatgacha)
+
+Server olmasdan botni ko'rib chiqish uchun. **Doimiy ishlash uchun emas**: vaqt tugagach bot to'xtaydi,
+paneldagi o'zgarishlar va buyurtmalar o'chadi (har safar namuna menyu bilan boshlanadi).
+
+1. Repozitoriya → **Settings → Secrets and variables → Actions → New repository secret** →
+   Name: `BOT_TOKEN`, Secret: @BotFather bergan token. Tokenni hech qachon kodga yoki ochiq joyga yozmang.
+2. **Actions → «Botni sinash (6 soatgacha)» → Run workflow**. Admin panel uchun `admin_ids` ga Telegram
+   ID'ingizni yozing (bilmasangiz, avval bo'sh qoldirib ishga tushiring va botga `/id` yozing).
+3. 1–2 daqiqadan keyin botga `/start` yozing.
+
 ### Kompyuterda sinash
 
 ```bash

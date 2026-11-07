@@ -1,0 +1,93 @@
+# Botni SINOV uchun GitHub Actions'da vaqtincha ishga tushirish (6 soatgacha).
+# Doimiy server emas: ish tugagach bot to'xtaydi va paneldagi o'zgarishlar o'chadi.
+#
+# Ishga tushirishdan oldin bir marta: Settings → Secrets and variables → Actions →
+#   New repository secret → Name: BOT_TOKEN, Secret: @BotFather bergan token
+name: Botni sinash (6 soatgacha)
+
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "Necha soat ishlasin (ko'pi bilan 5.5)"
+        required: false
+        default: "5"
+      admin_ids:
+        description: "Admin panel egasining Telegram ID'si (botga /id yozib bilasiz)"
+        required: false
+        default: ""
+      admin_chat_id:
+        description: "Buyurtmalar tushadigan guruh ID'si (ixtiyoriy, guruhda /id)"
+        required: false
+        default: ""
+
+# Bir vaqtda faqat bitta sinov: yangisi boshlansa, eskisi to'xtaydi
+concurrency:
+  group: test-bot
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+    steps:
+      - name: Token borligini tekshirish
+        run: |
+          if [ -z "$BOT_TOKEN" ]; then
+            echo "::error::BOT_TOKEN secret topilmadi. Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Kutubxonalarni o'rnatish
+        run: pip install -r requirements.txt
+
+      - name: Cloudflare tunnel (Mini App uchun https manzil)
+        run: |
+          curl -fsSL -o cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          chmod +x cloudflared
+          nohup ./cloudflared tunnel --no-autoupdate --url http://localhost:8080 > cloudflared.log 2>&1 &
+          URL=""
+          for i in $(seq 1 45); do
+            URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' cloudflared.log | head -1 || true)
+            [ -n "$URL" ] && break
+            sleep 2
+          done
+          if [ -z "$URL" ]; then cat cloudflared.log; echo "::error::Tunnel ochilmadi"; exit 1; fi
+          # Domen DNS'da paydo bo'lishini kutamiz
+          HOST=${URL#https://}
+          for i in $(seq 1 30); do getent hosts "$HOST" >/dev/null && break; sleep 2; done
+          echo "PUBLIC_URL=$URL" >> "$GITHUB_ENV"
+          {
+            echo "### 🍔 Bot ishga tushdi"
+            echo "- Mini App: $URL"
+            echo "- Admin panel: botga /panel yozing"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Bot ishlamoqda (oyna yopilsa ham davom etadi)
+        env:
+          ADMIN_IDS: ${{ inputs.admin_ids }}
+          ADMIN_CHAT_ID: ${{ inputs.admin_chat_id }}
+          HOURS: ${{ inputs.hours }}
+          BOT_MODE: webhook
+          DEV_MODE: "0"
+          DB_PATH: ${{ runner.temp }}/ayva/ayva.db
+        run: |
+          SECS=$(python -c "import os; h=float(os.environ.get('HOURS') or 5); print(int(max(0.1, min(h, 5.5)) * 3600))")
+          echo "Bot $SECS soniya ishlaydi"
+          timeout --signal=TERM "$SECS" python -m bot || [ $? -eq 124 ]
+
+      - name: Webhook'ni olib tashlash
+        if: always()
+        run: curl -s "https://api.telegram.org/bot${BOT_TOKEN}/deleteWebhook" > /dev/null || true

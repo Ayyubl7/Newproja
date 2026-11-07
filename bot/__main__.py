@@ -9,6 +9,7 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     BotCommand,
     BotCommandScopeAllPrivateChats,
@@ -93,11 +94,20 @@ async def main() -> None:
             return
         await setup_bot_ui(bot, settings)
         if settings.use_webhook:
-            await bot.set_webhook(
-                url=settings.public_url + settings.webhook_path,
-                secret_token=settings.webhook_secret,
-                allowed_updates=dp.resolve_used_update_types(),
-            )
+            # Yangi domen DNS'da paydo bo'lishi uchun bir necha soniya kerak bo'lishi mumkin — qayta urinamiz
+            for attempt in range(1, 7):
+                try:
+                    await bot.set_webhook(
+                        url=settings.public_url + settings.webhook_path,
+                        secret_token=settings.webhook_secret,
+                        allowed_updates=dp.resolve_used_update_types(),
+                    )
+                    break
+                except TelegramBadRequest as e:
+                    if attempt == 6:
+                        raise
+                    log.warning("Webhook o'rnatilmadi (%s), %s-urinish 10 soniyadan keyin", e.message, attempt + 1)
+                    await asyncio.sleep(10)
             log.info("Webhook rejimi: %s", settings.public_url)
             await _wait_for_stop()
         else:
