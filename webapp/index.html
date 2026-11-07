@@ -3,31 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0E0E0E">
+  <meta name="theme-color" content="#FFFFFF">
   <title>Ayva Burgers</title>
   <link rel="icon" href="/static/img/logo-badge.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/styles.css?v=2">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css?v=3">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
   <div id="app" class="app">
     <section id="view-loading" class="view is-active">
-      <div class="loading"><img src="/static/img/logo-light.png" alt="Ayva Burgers" class="loading__logo"></div>
+      <div class="loading"><img src="/static/img/logo-dark.png" alt="Ayva Burgers" class="loading__logo js-logo"></div>
     </section>
     <section id="view-error" class="view"></section>
     <section id="view-menu" class="view"></section>
     <section id="view-cart" class="view"></section>
     <section id="view-checkout" class="view"></section>
     <section id="view-success" class="view"></section>
+    <section id="view-orders" class="view"></section>
   </div>
 
   <div id="bottom-bar" class="bottom-bar" hidden></div>
   <div id="sheet" class="sheet" hidden></div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="/static/app.js?v=2"></script>
+  <script src="/static/app.js?v=3"></script>
 </body>
 </html>
