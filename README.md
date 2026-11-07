@@ -1,8 +1,8 @@
 # 🍔 Ayva Burgers — Telegram yetkazib berish boti
 
 Telegram bot, Mini App (bot ichida ochiladigan menyu) va admin panel. Mijoz rasmli menyudan taom tanlaydi,
-savatga soladi, manzil va lokatsiyani belgilaydi, buyurtma beradi. Buyurtma darhol xodimlar guruhiga va
-admin panelga tushadi. Restoran egasi menyu, narx, rasm, aksiya va sozlamalarni panelning o'zidan boshqaradi —
+savatga soladi, manzil yoki olib ketish filialini belgilaydi, buyurtma beradi. Buyurtma darhol tegishli
+filialning xodimlar guruhiga va admin panelga tushadi. Restoran egasi menyu, narx, rasm, aksiya va sozlamalarni panelning o'zidan boshqaradi —
 dasturchi kerak emas.
 
 ![Ayva Burgers Mini App va admin panel](docs/preview.png)
@@ -10,31 +10,41 @@ dasturchi kerak emas.
 ## Imkoniyatlar
 
 **Mijoz uchun (o'zbekcha / ruscha)**
-- `/start` → til tanlash → telefon raqamni yuborish → bosh menyu
+- Birinchi kirishda 3 qadam: **telefon → ism → manzil** (lokatsiya, yozilgan manzil yoki «🛍 Olib ketaman» + filial),
+  keyin menyu. Hammasi eslab qolinadi — keyingi safar «🍔 Buyurtma berish» saqlangan manzil bilan darhol menyuni
+  ochadi («📍 Manzilni o'zgartirish», «🛍 Olib ketaman» tugmalari bilan)
+- Mini App — minimalistik dizayn (Inter shrifti, oq/qora, bitta qizil aksent), yorug' va qorong'i rejim
 - Mini App: aksiya bannerlari, «🔥 Aksiyalar» bo'limi, kategoriyalar, rasmli kartalar, chegirma narxlari
   (eski narx chizilgan), «Hit / Yangi / Achchiq» belgilari, savat
 - Bepul yetkazishgacha qolgan summa ko'rsatkichi, sous/ichimlik takliflari
-- «🍔 Buyurtma berish» → bot Telegram'ning o'z tugmasi bilan lokatsiya so'raydi («📍 Lokatsiyani yuborish»,
-  «🏠 Oldingi manzil» yoki «🛍 Olib ketaman»); manzil OpenStreetMap orqali matnga aylantiriladi
-- Mini App'da ism, telefon va lokatsiya kartochka ko'rinishida (xarita bilan); raqam Telegram orqali
-  bir tugmada yuboriladi, lokatsiyani o'zgartirish ham bot chatidagi tugma orqali
+- Lokatsiya Telegram'ning o'z tugmasi bilan yuboriladi va OpenStreetMap orqali matnga aylantiriladi
+- Mini App'da ism, telefon va manzil kartochka ko'rinishida (xarita bilan); olib ketishda filial tanlanadi
+  (ish vaqti va «hozir yopiq» belgisi bilan); yetkazib berishda eng yaqin ochiq filial avtomatik tanlanadi
+- **Filiallar**: CHPK, Charxiy (24/7), Navoiy — har birining ish vaqti, manzili, telefoni va o'z xodimlar guruhi
+- **📦 Buyurtmalarim**: holati, 🔁 bir tugmada takrorlash (savatga tushadi), hali qabul qilinmagan buyurtmani
+  ❌ bekor qilish (guruhga xabar boradi)
+- **⭐ Baho**: buyurtma yakunlangach mijoz 1–5 baho qo'yadi; 3 va undan pastida «nima yoqmadi?» deb so'raladi —
+  baho va izoh filial guruhiga keladi, panelda statistikasi ko'rinadi
 - Variantli mahsulotlar: pitsa (kichik/o'rta/katta), lavash (mini/oddiy/extra), hot-dog (klassik/cheese/…)
-- To'lov: naqd pul (Click va Payme «Tez orada»)
+- To'lov: faqat naqd pul (kuryerga yoki kassada)
 - Ish vaqtidan tashqari yoki admin to'xtatganda buyurtma qabul qilinmaydi (menyuni ko'rish mumkin)
-- «📦 Buyurtmalarim», «ℹ️ Biz haqimizda», «📞 Aloqa», «⚙️ Sozlamalar»
+- Bosh menyu: «🍔 Buyurtma berish», «📦 Buyurtmalarim», «🏪 Filiallar», «📞 Aloqa»,
+  «⚙️ Sozlamalar» (ism, raqam, manzil, tilni o'zgartirish)
 
 **Admin panel** (botda `/panel` yoki «🛠 Admin panel» tugmasi)
-- 📋 **Buyurtmalar** — faol buyurtmalar, bir tugma bilan holat o'zgartirish, tarix, raqam/telefon bo'yicha qidiruv.
-  Yangi buyurtma kelsa panel o'zi xabar beradi
+- 📋 **Buyurtmalar** — faol buyurtmalar, bir tugma bilan holat o'zgartirish, tarix, raqam/telefon bo'yicha qidiruv,
+  filial bo'yicha filtr, mijoz bahosi va izohi. Yangi buyurtma kelsa panel o'zi xabar beradi
 - 🍔 **Menyu** — mahsulot qo'shish/tahrirlash/o'chirish: rasm (telefondan yuklanadi, avtomatik kichraytiriladi),
   nomi va tarkibi (uz/ru), narx, kategoriya, belgi. «Sotuvda bor» (stop-list) va «Menyuda ko'rsatish» o'tkazgichlari,
   tartibni o'zgartirish. Kategoriyalarni qo'shish, nomlash, rasmini tanlash, yashirish
 - 🔥 **Aksiyalar** — chegirma narxi (sana bilan yoki muddatsiz, −10/−20/−30% tugmalari),
   menyu tepasida aylanadigan bannerlar (rasm yoki sarlavha, bosilganda mahsulot yoki kategoriyani ochadi)
-- 📊 **Statistika** — bugun / 7 / 30 kun: tushum, buyurtmalar, o'rtacha chek, yangi mijozlar,
-  kunlik tushum grafigi, soatlar bo'yicha yuklama, eng ko'p sotilgan mahsulotlar
-- ⚙️ **Sozlamalar** — buyurtmalarni vaqtincha to'xtatish, restoran ma'lumotlari, manzil va lokatsiya, ish vaqti,
-  yetkazish narxi, bepul yetkazish chegarasi, minimal buyurtma, to'lov turlari, adminlar ro'yxati,
+- 📊 **Statistika** — bugun / 7 / 30 kun: tushum, buyurtmalar, o'rtacha chek, yangi mijozlar, o'rtacha baho
+  (1–5 taqsimoti va so'nggi izohlar), filiallar kesimida, kunlik tushum grafigi, soatlar bo'yicha yuklama,
+  eng ko'p sotilgan mahsulotlar
+- ⚙️ **Sozlamalar** — buyurtmalarni vaqtincha to'xtatish, **filiallar** (nomi, manzili, telefoni, ish vaqti,
+  xaritadagi nuqtasi — Google/Yandex havolasini qo'yish kifoya, buyurtmalar guruhi), restoran ma'lumotlari,
+  yetkazish narxi, bepul yetkazish chegarasi, minimal buyurtma, adminlar ro'yxati,
   mijozlarga xabar (rasm + matn + «Menyuni ochish» tugmasi)
 - Telefonda Telegram ichida ochiladi; kompyuterda — bot beradigan bir martalik havola orqali (parolsiz)
 
@@ -49,10 +59,12 @@ dasturchi kerak emas.
 Cheklovlar serverda tekshiriladi — kassir narxni yoki menyuni hatto to'g'ridan-to'g'ri so'rov bilan ham o'zgartira olmaydi.
 
 **Xodimlar guruhi**
-- Har bir buyurtma: mijoz, telefon, manzil, xarita havolasi, mahsulotlar, summa
+- Buyurtma filialning o'z guruhiga keladi (panel → Sozlamalar → Filiallar → «Buyurtmalar guruhi»).
+  Guruh belgilanmagan filial buyurtmalari umumiy `ADMIN_CHAT_ID` guruhiga tushadi
+- Har bir buyurtma: filial, mijoz, telefon, manzil, xarita havolasi, mahsulotlar, summa
 - Tugmalar: ✅ Qabul qilish → 🚗 Yo'lga chiqdi / 🛍 Tayyor → 🏁 Yakunlash, ❌ Bekor qilish
   (panel bilan sinxron — qayerda bosilsa ham ikkalasida yangilanadi)
-- `/active`, `/stats`, `/stoplist`, `/broadcast`, `/panel`, `/id`
+- `/active` (filial guruhida — faqat o'sha filial buyurtmalari), `/stats`, `/stoplist`, `/broadcast`, `/panel`, `/id`
 - Guruh — ishonchli xodimlar xonasi: guruhdagi hamma buyurtma tugmalarini, `/active`, `/stats` va `/stoplist` ni
   ishlata oladi. `/broadcast` (mijozlarga reklama) faqat ega va administratorga; botning shaxsiy chatida
   kassirga `/stats` ham yopiq
@@ -94,6 +106,9 @@ tests/            avtomatik testlar
    Ikkalasini server sozlamalariga qo'yib, qayta ishga tushiring.
 5. Botga `/panel` yozing — admin panel ochiladi. Boshqa xodimlarni panel → Sozlamalar → Adminlar orqali
    qo'shasiz: Telegram ID (xodim botga `/id` yozib biladi) va rol — Administrator yoki Kassir.
+6. Har bir filial uchun alohida guruh kerak bo'lsa (CHPK, Charxiy, Navoiy): har biriga botni qo'shing,
+   guruhda `/id` yozing va panel → Sozlamalar → Filiallar → filial → «Buyurtmalar guruhi»ga qo'ying.
+   Server sozlamalarini o'zgartirish yoki qayta ishga tushirish shart emas.
 
 ## 2. Serverga joylash
 
@@ -161,11 +176,8 @@ Hammasi admin paneldan o'zgartiriladi, serverni qayta ishga tushirish kerak emas
   Keyin ular o'qilmaydi, menyu bazada saqlanadi.
 - Mahsulot rasmlari: telefondan yoki kompyuterdan yuklang (JPG/PNG/WebP, 12 MB gacha). Server ularni
   1200 px gacha kichraytirib, WebP'ga o'giradi. Rasm bo'lmasa kategoriyaning chizilgan rasmi chiqadi.
-- **Logo va ranglar**: logolar — `webapp/img/logo-light.png` (qora fon uchun), `logo-dark.png`, `logo-badge.png`;
-  brend ranglari — `webapp/styles.css` boshidagi `--brand` (qizil) va `--head` (qora).
-
-## 4. Click va Payme (keyingi bosqich)
-
-Hozir ular Mini App va panelda «Tez orada» bo'lib turibdi va yoqib bo'lmaydi. Ulash uchun Click/Payme bilan
-shartnoma tuziladi va @BotFather → Payments bo'limidan provayder tokeni olinadi. Shundan so'ng to'lov
-Telegram ichida (`openInvoice`) bo'ladi — buning uchun to'lov kodi qo'shiladi.
+- **Filiallar** `data/store.json` dagi `branches` ro'yxatidan birinchi ishga tushishda yuklanadi; keyin paneldan
+  boshqariladi. Navoiy filialining aniq manzili va uchala filialning xaritadagi nuqtasini panelda kiriting —
+  nuqta bo'lsa, yetkazib berish buyurtmasi mijozga eng yaqin ochiq filialga tushadi.
+- **Logo va ranglar**: logolar — `webapp/img/logo-dark.png` (oq fon uchun), `logo-light.png` (qora fon uchun),
+  `logo-badge.png`; brend rangi — `webapp/styles.css` boshidagi `--brand` (qizil).
