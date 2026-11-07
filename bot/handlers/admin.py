@@ -37,6 +37,21 @@ class IsAdmin(BaseFilter):
         return ctx.is_admin(event.from_user.id if event.from_user else None, chat.id if chat else None)
 
 
+class IsFullAdmin(BaseFilter):
+    """Ega yoki administrator (kassirga yopiq amallar uchun)."""
+
+    async def __call__(self, event: Message | CallbackQuery, ctx: AppContext) -> bool:
+        return bool(event.from_user) and ctx.is_full_admin(event.from_user.id)
+
+
+class StatsAccess(BaseFilter):
+    """Statistika: admin guruhida hamma xodim, shaxsiy chatda — faqat ega/administrator."""
+
+    async def __call__(self, message: Message, ctx: AppContext) -> bool:
+        uid = message.from_user.id if message.from_user else None
+        return message.chat.id == ctx.settings.admin_chat_id or ctx.is_full_admin(uid)
+
+
 class IsPanelAdmin(BaseFilter):
     async def __call__(self, event: Message, ctx: AppContext) -> bool:
         return bool(event.from_user) and ctx.is_panel_admin(event.from_user.id)
@@ -163,7 +178,7 @@ async def cmd_active(message: Message, ctx: AppContext) -> None:
     await message.answer("\n\n".join(blocks))
 
 
-@admin_cmds.message(Command("stats"))
+@admin_cmds.message(Command("stats"), StatsAccess())
 async def cmd_stats(message: Message, ctx: AppContext) -> None:
     lang = ctx.settings.admin_lang
     today = await ctx.db.stats_since(start_of_today_utc())
@@ -233,7 +248,7 @@ async def cb_stoplist(call: CallbackQuery, ctx: AppContext) -> None:
 
 
 # ---------- reklama (xabarga reply qilib) ----------
-@admin_cmds.message(Command("broadcast"))
+@admin_cmds.message(Command("broadcast"), IsFullAdmin())
 async def cmd_broadcast(message: Message, ctx: AppContext) -> None:
     lang = ctx.settings.admin_lang
     src = message.reply_to_message

@@ -35,11 +35,24 @@ dasturchi kerak emas.
   mijozlarga xabar (rasm + matn + «Menyuni ochish» tugmasi)
 - Telefonda Telegram ichida ochiladi; kompyuterda — bot beradigan bir martalik havola orqali (parolsiz)
 
+**Rollar**
+
+| Rol | Kim belgilaydi | Nima qila oladi |
+|---|---|---|
+| 👑 Egasi | `.env` dagi `ADMIN_IDS` | Hammasi + adminlarni qo'shish, rolini o'zgartirish, o'chirish |
+| Administrator | Egasi panelda qo'shadi | Menyu, narx, rasm, aksiyalar, statistika, sozlamalar, mijozlarga xabar |
+| 🧾 Kassir | Egasi panelda qo'shadi | Faqat buyurtmalar, stop-list (mahsulot tugadi/bor) va buyurtmani vaqtincha to'xtatish |
+
+Cheklovlar serverda tekshiriladi — kassir narxni yoki menyuni hatto to'g'ridan-to'g'ri so'rov bilan ham o'zgartira olmaydi.
+
 **Xodimlar guruhi**
 - Har bir buyurtma: mijoz, telefon, manzil, xarita havolasi, mahsulotlar, summa
 - Tugmalar: ✅ Qabul qilish → 🚗 Yo'lga chiqdi / 🛍 Tayyor → 🏁 Yakunlash, ❌ Bekor qilish
   (panel bilan sinxron — qayerda bosilsa ham ikkalasida yangilanadi)
 - `/active`, `/stats`, `/stoplist`, `/broadcast`, `/panel`, `/id`
+- Guruh — ishonchli xodimlar xonasi: guruhdagi hamma buyurtma tugmalarini, `/active`, `/stats` va `/stoplist` ni
+  ishlata oladi. `/broadcast` (mijozlarga reklama) faqat ega va administratorga; botning shaxsiy chatida
+  kassirga `/stats` ham yopiq
 
 **Xavfsizlik va tezlik**
 - Narxlar faqat serverda hisoblanadi (aksiya narxi ham) — mijoz narxni o'zgartira olmaydi
@@ -76,7 +89,8 @@ tests/            avtomatik testlar
    - guruhda `/id` yozing → chiqqan raqam `ADMIN_CHAT_ID` bo'ladi;
    - botga shaxsiy `/id` yozing → sizning ID'ingiz `ADMIN_IDS` bo'ladi (panel egasi).
    Ikkalasini server sozlamalariga qo'yib, qayta ishga tushiring.
-5. Botga `/panel` yozing — admin panel ochiladi. Boshqa xodimlarni panel → Sozlamalar → Adminlar orqali qo'shasiz.
+5. Botga `/panel` yozing — admin panel ochiladi. Boshqa xodimlarni panel → Sozlamalar → Adminlar orqali
+   qo'shasiz: Telegram ID (xodim botga `/id` yozib biladi) va rol — Administrator yoki Kassir.
 
 ## 2. Serverga joylash
 

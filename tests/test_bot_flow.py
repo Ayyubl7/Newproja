@@ -230,3 +230,31 @@ def test_panel_command(tmp_path):
         finally:
             await ctx.db.close()
     asyncio.run(go())
+
+
+def test_cashier_bot_permissions(tmp_path):
+    async def go():
+        dp, bot, session, ctx = await setup(tmp_path)
+        try:
+            await ctx.db.add_admin(USER_ID, "Kassa", "cashier")
+            await ctx.reload_admins()
+            await ctx.db.upsert_user(USER_ID, "Ali", "ali")
+            # kassir panelni ocha oladi
+            await feed(dp, bot, message=msg("/panel"))
+            assert session.calls[-1].reply_markup.inline_keyboard[0][0].web_app
+            # shaxsiy chatda statistika va reklama yo'q, stop-list bor
+            for cmd in ("/stats", "/broadcast"):
+                session.calls.clear()
+                await feed(dp, bot, message=msg(cmd))
+                assert all("Statistika" not in (getattr(c, "text", "") or "") and "📣" not in (getattr(c, "text", "") or "")
+                           for c in session.calls), cmd
+            session.calls.clear()
+            await feed(dp, bot, message=msg("/stoplist"))
+            assert "Stop-list" in session.calls[-1].text
+            # admin guruhida statistika hamma xodimga ochiq
+            session.calls.clear()
+            await feed(dp, bot, message=msg("/stats", chat_id=ADMIN_CHAT, uid=USER_ID))
+            assert "Statistika" in session.calls[-1].text
+        finally:
+            await ctx.db.close()
+    asyncio.run(go())

@@ -16,6 +16,10 @@ from .db import Database
 
 LOGIN_TOKEN_TTL = 10 * 60
 
+# Rollar: owner — .env dagi ADMIN_IDS; admin — to'liq panel; cashier — buyurtmalar, stop-list va pauza
+ROLES = ("admin", "cashier")
+FULL_ROLES = ("owner", "admin")
+
 
 @dataclass
 class AppContext:
@@ -23,8 +27,8 @@ class AppContext:
     bot: Bot
     db: Database
     catalog: Catalog
-    # Admin paneldan qo'shilgan adminlar (ADMIN_IDS — egalar, ular .env'da)
-    extra_admins: set[int] = field(default_factory=set)
+    # Admin paneldan qo'shilganlar: user_id -> rol (ADMIN_IDS — egalar, ular .env'da)
+    extra_admins: dict[int, str] = field(default_factory=dict)
     # Kompyuterdan kirish uchun bir martalik havolalar: token -> (user_id, amal qilish muddati)
     login_tokens: dict[str, tuple[int, float]] = field(default_factory=dict)
     broadcast: dict[str, Any] = field(default_factory=lambda: {"running": False})
@@ -33,8 +37,19 @@ class AppContext:
     def is_owner(self, user_id: int | None) -> bool:
         return user_id is not None and user_id in self.settings.admin_ids
 
+    def role_of(self, user_id: int | None) -> str | None:
+        if user_id is None:
+            return None
+        if self.is_owner(user_id):
+            return "owner"
+        return self.extra_admins.get(user_id)
+
     def is_panel_admin(self, user_id: int | None) -> bool:
-        return self.is_owner(user_id) or (user_id is not None and user_id in self.extra_admins)
+        return self.role_of(user_id) is not None
+
+    def is_full_admin(self, user_id: int | None) -> bool:
+        """Ega yoki administrator (kassir emas)."""
+        return self.role_of(user_id) in FULL_ROLES
 
     def is_admin(self, user_id: int | None, chat_id: int | None = None) -> bool:
         """Buyurtma tugmalari va guruh buyruqlari: panel adminlari yoki admin guruhi a'zolari."""
@@ -43,7 +58,8 @@ class AppContext:
         return chat_id is not None and chat_id != 0 and chat_id == self.settings.admin_chat_id
 
     async def reload_admins(self) -> None:
-        self.extra_admins = {a["user_id"] for a in await self.db.list_admins()}
+        self.extra_admins = {a["user_id"]: a["role"] if a["role"] in ROLES else "admin"
+                             for a in await self.db.list_admins()}
 
     async def reload_catalog(self) -> None:
         # Yangi obyekt yaratib, bitta amal bilan almashtiramiz — so'rovlar hech qachon yarim holatni ko'rmaydi

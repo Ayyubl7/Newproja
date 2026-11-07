@@ -93,6 +93,13 @@
       e_need_one_type: "yetkazib berish yoki olib ketishdan biri yoqilgan bo'lishi kerak", e_need_one_payment: "kamida bitta to'lov usuli kerak",
       e_owner_only: "Bu amal faqat egasi uchun", e_broadcast_running: 'Boshqa xabar yuborilmoqda', e_stale: "Holat allaqachon o'zgargan",
       e_unauthorized: 'Qaytadan kiring', e_forbidden: "Ruxsat yo'q", e_csrf: 'Sahifani yangilang',
+      e_role_forbidden: "Bu amal uchun ruxsatingiz yo'q", e_already_owner: 'bu odam allaqachon egasi',
+      role_owner: 'Egasi', role_admin: 'Administrator', role_cashier: 'Kassir', f_role: 'Roli',
+      role_admin_sub: "Menyu, narxlar, aksiyalar, statistika va sozlamalar — hammasi",
+      role_cashier_sub: "Faqat buyurtmalar, stop-list va buyurtmani vaqtincha to'xtatish",
+      cashier_menu_note: "🔒 Kassir rejimi: faqat mahsulot sotuvda bor/yo'qligini o'zgartira olasiz.",
+      cashier_settings_note: "🔒 Kassir rejimi: menyu, narx, aksiya va sozlamalarni administrator o'zgartiradi.",
+      role_changed: '✅ Rol o\'zgartirildi',
     },
     ru: {
       cur: 'сум', pcs: 'шт', k: 'K', m: 'M',
@@ -172,6 +179,13 @@
       e_need_one_type: 'должна быть включена доставка или самовывоз', e_need_one_payment: 'нужен хотя бы один способ оплаты',
       e_owner_only: 'Только для владельца', e_broadcast_running: 'Уже идёт другая рассылка', e_stale: 'Статус уже изменился',
       e_unauthorized: 'Войдите заново', e_forbidden: 'Нет доступа', e_csrf: 'Обновите страницу',
+      e_role_forbidden: 'Недостаточно прав для этого действия', e_already_owner: 'этот человек уже владелец',
+      role_owner: 'Владелец', role_admin: 'Администратор', role_cashier: 'Кассир', f_role: 'Роль',
+      role_admin_sub: 'Меню, цены, акции, статистика и настройки — всё',
+      role_cashier_sub: 'Только заказы, стоп-лист и временная остановка приёма заказов',
+      cashier_menu_note: '🔒 Режим кассира: можно только включать/выключать наличие товара.',
+      cashier_settings_note: '🔒 Режим кассира: меню, цены, акции и настройки меняет администратор.',
+      role_changed: '✅ Роль изменена',
     },
   };
 
@@ -304,22 +318,26 @@
 
   // ================================================================ shell / navigation
   const PAGES = ['orders', 'menu', 'promos', 'stats', 'settings'];
+  const CASHIER_PAGES = ['orders', 'menu', 'settings'];
+  const isFull = () => !!S.me && (S.me.role === 'owner' || S.me.role === 'admin');
+  const pages = () => (isFull() ? PAGES : CASHIER_PAGES);
   function renderNav() {
     const nav = $('#nav');
     nav.hidden = false;
+    nav.style.gridTemplateColumns = `repeat(${pages().length}, 1fr)`;
     nav.innerHTML = `<div class="nav__brand"><img src="/static/img/logo.svg" alt="">${esc(S.me.store_name || 'Ayva')}</div>` +
-      PAGES.map((p) => `<button class="nav__item ${S.page === p ? 'is-active' : ''}" data-action="nav" data-page="${p}">
+      pages().map((p) => `<button class="nav__item ${S.page === p ? 'is-active' : ''}" data-action="nav" data-page="${p}">
         ${ICON[p]}<span>${t('nav_' + p)}</span>${p === 'orders' && S.activeCount ? `<span class="nav__badge">${S.activeCount}</span>` : ''}
       </button>`).join('');
   }
   function renderTopbar() {
     $('#topbar').innerHTML = `<img class="topbar__logo" src="/static/img/logo.svg" alt="">
-      <div class="topbar__title"><div class="topbar__kicker">${esc(S.me.store_name || '')} · ${t('admin')}</div>
+      <div class="topbar__title"><div class="topbar__kicker">${esc(S.me.store_name || '')} · ${t('role_' + (S.me.role || 'admin'))}</div>
       <div class="topbar__h">${t('nav_' + S.page)}</div></div>`;
   }
 
   async function go(page, { push = true } = {}) {
-    if (!PAGES.includes(page)) page = 'orders';
+    if (!pages().includes(page)) page = 'orders';
     if (S.dirty && page !== S.page) {
       if (!(await confirmBox(t('discard_confirm')))) { renderNav(); return; }
       S.dirty = false;
@@ -491,21 +509,22 @@
     const sections = cats.map((c) => {
       const items = m.products.filter((p) => p.category_id === c.id && match(p));
       if (q && !items.length) return '';
-      const rows = items.map((p, i) => productRow(p, { reorder: S.reorder && !q, first: i === 0, last: i === items.length - 1 })).join('');
+      const rows = items.map((p, i) => productRow(p, { reorder: S.reorder && !q && isFull(), first: i === 0,
+        last: i === items.length - 1, action: isFull() ? 'edit-product' : 'none' })).join('');
       return `<div class="cat-h"><h3>${esc(nameOf(c))}</h3>${c.visible ? '' : `<span class="tag">🙈 ${t('hidden')}</span>`}
-          <span class="grow"></span><button class="icon-btn" data-action="new-product" data-cat="${esc(c.id)}" aria-label="${t('add')}">${ICON.plus}</button></div>
+          <span class="grow"></span>${isFull() ? `<button class="icon-btn" data-action="new-product" data-cat="${esc(c.id)}" aria-label="${t('add')}">${ICON.plus}</button>` : ''}</div>
         ${rows ? `<div class="plist">${rows}</div>` : `<div class="empty small">${t('no_products')}</div>`}`;
     }).join('');
 
     $('#page').innerHTML = `
       <label class="search">${ICON.search}<input class="input" type="search" data-input="menu-q" placeholder="${esc(t('search'))}" value="${esc(S.menuQuery)}"></label>
-      <div class="row-gap" style="margin-top:8px">
+      ${isFull() ? `<div class="row-gap" style="margin-top:8px">
         <button class="btn btn--sm" data-action="categories">🗂 ${t('categories')}</button>
         <button class="btn btn--sm ${S.reorder ? 'btn--dark' : ''}" data-action="reorder-toggle">${S.reorder ? '✓ ' + t('reorder_done') : '↕ ' + t('reorder')}</button>
-      </div>
+      </div>` : `<div class="notice">${t('cashier_menu_note')}</div>`}
       <div class="chips">${chips.join('')}</div>
       ${sections || `<div class="empty">${t('no_products')}</div>`}
-      <button class="fab" data-action="new-product">${ICON.plus}${t('new_product')}</button>`;
+      ${isFull() ? `<button class="fab" data-action="new-product">${ICON.plus}${t('new_product')}</button>` : ''}`;
   }
 
   async function toggleAvailable(id, value, input) {
@@ -1003,6 +1022,10 @@
 
   // ================================================================ SETTINGS
   async function loadSettings() {
+    if (!isFull()) {
+      S.store = (await api('GET', '/api/admin/store')).store;
+      return;
+    }
     const [s, a, b] = await Promise.all([api('GET', '/api/admin/store'), api('GET', '/api/admin/admins'), api('GET', '/api/admin/broadcast')]);
     S.store = s.store;
     S.admins = a;
@@ -1014,12 +1037,21 @@
     const s = S.store;
     const a = S.admins;
     const on = s.accepting;
+    const panel = `<div class="card"><h3 class="card__title">${t('panel')}</h3>
+      <div class="field" style="margin-top:12px"><span class="field__label">${t('panel_lang')}</span>
+      <div class="segment" style="margin-top:0">${['uz', 'ru'].map((l) => `<button class="${S.lang === l ? 'is-active' : ''}" data-action="lang" data-lang="${l}">${l === 'uz' ? "O'zbekcha" : 'Русский'}</button>`).join('')}</div></div>
+      <div class="small muted">${t('desktop_hint')}</div>
+      ${IN_TG ? '' : `<button class="btn btn--ghost btn--block" style="margin-top:12px" data-action="logout">${t('logout')}</button>`}</div>`;
     const loc = s.location || {};
     const pause = `<div class="card pause-card ${on ? '' : 'is-paused'}">
       <div class="pause-card__icon">${on ? '🟢' : '⏸'}</div>
       <div class="grow"><div class="card__title">${on ? t('accepting_on') : t('accepting_off')}</div>
         <div class="small muted">${on ? t('accepting_sub_on') : t('accepting_sub_off')}</div></div>
       <label class="switch"><input type="checkbox" data-toggle="accepting" ${on ? 'checked' : ''}><span></span></label></div>`;
+    if (!isFull()) {
+      $('#page').innerHTML = pause + `<div class="notice" style="margin-top:12px">${t('cashier_settings_note')}</div>` + panel;
+      return;
+    }
 
     const form = `<form id="sform" onsubmit="return false">
       <div class="card"><h3 class="card__title" style="margin-bottom:12px">${t('restaurant')}</h3>
@@ -1059,15 +1091,21 @@
     </form>`;
 
     const ownerRows = a.owners.map((o) => `<div class="admin-row"><span class="avatar">👑</span><div class="grow"><b>${esc(o.name || 'ID ' + o.user_id)}</b>
-      ${o.user_id === a.me ? `<span class="small muted">(${t('you')})</span>` : ''}<div class="small muted">${o.user_id} · ${t('owner')}</div></div></div>`).join('');
-    const adminRows = a.admins.map((x) => `<div class="admin-row"><span class="avatar">${esc((x.name || '?').slice(0, 1).toUpperCase())}</span>
-      <div class="grow"><b>${esc(x.name || 'ID ' + x.user_id)}</b>${x.user_id === a.me ? ` <span class="small muted">(${t('you')})</span>` : ''}<div class="small muted">${x.user_id}</div></div>
-      ${a.can_manage ? `<button class="btn btn--sm btn--danger" data-action="remove-admin" data-id="${x.user_id}" data-name="${esc(x.name || x.user_id)}">${t('delete')}</button>` : ''}</div>`).join('');
+      ${o.user_id === a.me ? `<span class="small muted">(${t('you')})</span>` : ''}<div class="small muted">${o.user_id} · ${t('role_owner')}</div></div></div>`).join('');
+    const roleSelect = (x) => `<select class="input role-select" data-role-select data-id="${x.user_id}" data-name="${esc(x.name)}">
+      ${['admin', 'cashier'].map((r) => `<option value="${r}" ${x.role === r ? 'selected' : ''}>${t('role_' + r)}</option>`).join('')}</select>`;
+    const adminRows = a.admins.map((x) => `<div class="admin-row"><span class="avatar">${x.role === 'cashier' ? '🧾' : esc((x.name || '?').slice(0, 1).toUpperCase())}</span>
+      <div class="grow"><b>${esc(x.name || 'ID ' + x.user_id)}</b>${x.user_id === a.me ? ` <span class="small muted">(${t('you')})</span>` : ''}
+        <div class="small muted">${x.user_id}${a.can_manage ? '' : ' · ' + t('role_' + x.role)}</div></div>
+      ${a.can_manage ? `${roleSelect(x)}<button class="icon-btn" data-action="remove-admin" data-id="${x.user_id}" data-name="${esc(x.name || x.user_id)}" aria-label="${t('delete')}">${ICON.close}</button>` : ''}</div>`).join('');
     const admins = `<div class="card"><h3 class="card__title">${t('admins')}</h3>
       ${ownerRows}${adminRows}
       ${a.can_manage ? `<form id="aform" onsubmit="return false" style="margin-top:12px">
         <div class="grid2">${field(t('f_user_id'), `<input class="input" name="user_id" type="number" inputmode="numeric" data-num>`)}${field(t('f_admin_name'), inp('name', '', 'maxlength="60"'))}</div>
         <div class="field__hint" style="margin:-4px 2px 10px">${t('admin_id_hint')}</div>
+        <div class="field"><span class="field__label">${t('f_role')}</span><input type="hidden" name="role" value="admin">
+          <div class="role-pick">${['admin', 'cashier'].map((r) => `<button type="button" class="${r === 'admin' ? 'is-active' : ''}" data-action="pick-role" data-role="${r}">
+            <b>${t('role_' + r)}</b><span>${t('role_' + r + '_sub')}</span></button>`).join('')}</div></div>
         <button class="btn btn--block" data-action="add-admin">${ICON.plus.replace('<svg', '<svg width="16" height="16"')} ${t('add_admin')}</button></form>`
         : `<div class="small muted" style="margin-top:8px">${t('only_owner')}</div>`}
       <div class="small muted" style="margin-top:10px">${t('owners_hint')}</div></div>`;
@@ -1083,12 +1121,6 @@
           ${bc.finished_at ? `<div class="small muted" style="margin-top:8px">${t('broadcast_done', { ok: bc.ok, fail: bc.fail })}</div>` : ''}
         </form>`;
     const broadcast = `<div class="card"><h3 class="card__title">${t('broadcast')}</h3><div class="card__sub" style="margin-top:4px">${t('broadcast_hint')}</div>${bcBody}</div>`;
-
-    const panel = `<div class="card"><h3 class="card__title">${t('panel')}</h3>
-      <div class="field" style="margin-top:12px"><span class="field__label">${t('panel_lang')}</span>
-      <div class="segment" style="margin-top:0">${['uz', 'ru'].map((l) => `<button class="${S.lang === l ? 'is-active' : ''}" data-action="lang" data-lang="${l}">${l === 'uz' ? "O'zbekcha" : 'Русский'}</button>`).join('')}</div></div>
-      <div class="small muted">${t('desktop_hint')}</div>
-      ${IN_TG ? '' : `<button class="btn btn--ghost btn--block" style="margin-top:12px" data-action="logout">${t('logout')}</button>`}</div>`;
 
     $('#page').innerHTML = pause + form + admins + broadcast + panel;
   }
@@ -1178,11 +1210,20 @@
     const f = readForm(root);
     if (!f.user_id) { markInvalid(root, 'user_id'); return toast(`${t('f_user_id')}: ${t('e_required')}`, 'error'); }
     try {
-      await api('POST', '/api/admin/admins', { user_id: f.user_id, name: f.name.trim() });
+      await api('POST', '/api/admin/admins', { user_id: f.user_id, name: f.name.trim(), role: f.role });
       S.admins = await api('GET', '/api/admin/admins');
       toast(t('saved'), 'ok');
       renderSettings();
     } catch (e) { fail(e); }
+  }
+
+  async function setRole(el) {
+    try {
+      await api('POST', '/api/admin/admins', { user_id: Number(el.dataset.id), name: el.dataset.name || '', role: el.value });
+      S.admins = await api('GET', '/api/admin/admins');
+      toast(t('role_changed'), 'ok');
+      renderSettings();
+    } catch (e) { fail(e); renderSettings(); }
   }
 
   async function removeAdmin(id, name) {
@@ -1264,6 +1305,9 @@
       case 'save-category': await saveCategory(id); break;
       case 'delete-category': await deleteCategory(id); break;
       case 'move-category': await moveCategory(id, Number(el.dataset.dir)); break;
+      case 'pick-role':
+        $$('.role-pick button').forEach((b) => b.classList.toggle('is-active', b === el));
+        $('#aform [name="role"]').value = el.dataset.role; haptic('select'); break;
       case 'pick-icon':
         $$('.icon-pick button').forEach((b) => b.classList.toggle('is-active', b === el));
         $('#cform [name="icon"]').value = el.dataset.icon; haptic('select'); break;
@@ -1305,6 +1349,7 @@
     const el = e.target;
     if (el.dataset.toggle === 'available') toggleAvailable(el.dataset.id, el.checked, el);
     else if (el.dataset.toggle === 'accepting') setAccepting(el.checked, el);
+    else if (el.dataset.roleSelect !== undefined) setRole(el);
     else if (el.dataset.promoToggle !== undefined) {
       const box = $('#promo-fields');
       box.hidden = !el.checked;

@@ -311,3 +311,99 @@ def test_admins_and_broadcast(tmp_path):
         finally:
             await close(client, ctx)
     run(go())
+
+
+CASHIER = 44
+MANAGER = 45
+
+
+def test_roles_cashier_and_admin(tmp_path):
+    async def go():
+        client, ctx, session = await make_client(tmp_path)
+        try:
+            # ega rol bilan qo'shadi
+            for uid, role in ((CASHIER, "cashier"), (MANAGER, "admin")):
+                r = await client.post("/api/admin/admins", json={"user_id": uid, "name": role, "role": role}, headers=tma())
+                assert r.status == 200
+            r = await client.post("/api/admin/admins", json={"user_id": 99, "role": "boss"}, headers=tma())
+            assert r.status == 400
+            r = await client.post("/api/admin/admins", json={"user_id": OWNER, "role": "cashier"}, headers=tma())
+            assert r.status == 400  # egani kassirga aylantirib bo'lmaydi
+
+            me = await (await client.get("/api/admin/me", headers=tma(CASHIER))).json()
+            assert me["role"] == "cashier" and me["is_owner"] is False
+            assert (await (await client.get("/api/admin/me", headers=tma(MANAGER))).json())["role"] == "admin"
+
+            # kassir: buyurtmalar, stop-list, pauza — mumkin
+            r = await client.post("/api/order", json=ORDER, headers=tma(7))
+            oid = (await r.json())["order"]["id"]
+            assert (await client.get("/api/admin/orders?tab=active", headers=tma(CASHIER))).status == 200
+            r = await client.post(f"/api/admin/orders/{oid}/status", json={"status": "accepted"}, headers=tma(CASHIER))
+            assert r.status == 200
+            assert (await client.get("/api/admin/menu", headers=tma(CASHIER))).status == 200
+            r = await client.patch("/api/admin/products/classic", json={"available": False}, headers=tma(CASHIER))
+            assert r.status == 200 and not ctx.catalog.is_available("classic")
+            r = await client.patch("/api/admin/store", json={"accepting": False}, headers=tma(CASHIER))
+            assert r.status == 200 and not ctx.catalog.store["accepting"]
+            await client.patch("/api/admin/store", json={"accepting": True}, headers=tma(CASHIER))
+
+            # kassir: narx, menyu, aksiya, sozlama, statistika, xabar — yopiq
+            forbidden = [
+                ("PATCH", "/api/admin/products/classic", {"price": 1000}),
+                ("PATCH", "/api/admin/products/classic", {"available": True, "promo_price": 100}),
+                ("POST", "/api/admin/products", {"name_uz": "X", "price": 1000, "category_id": "burgers"}),
+                ("DELETE", "/api/admin/products/classic", None),
+                ("POST", "/api/admin/categories", {"name_uz": "X"}),
+                ("POST", "/api/admin/banners", {"title_uz": "X"}),
+                ("GET", "/api/admin/banners", None),
+                ("PATCH", "/api/admin/store", {"delivery": {"fee": 0}}),
+                ("PATCH", "/api/admin/store", {"accepting": True, "name": "Boshqa"}),
+                ("GET", "/api/admin/stats", None),
+                ("GET", "/api/admin/admins", None),
+                ("POST", "/api/admin/admins", {"user_id": 5}),
+                ("GET", "/api/admin/broadcast", None),
+                ("POST", "/api/admin/broadcast", {"text": "hi"}),
+            ]
+            for method, path, body in forbidden:
+                r = await client.request(method, path, json=body, headers=tma(CASHIER))
+                assert r.status == 403 and (await r.json())["error"] == "role_forbidden", (method, path)
+            assert ctx.catalog.products["classic"]["price"] == 32000
+            form = FormData()
+            form.add_field("file", png_bytes(), filename="a.png", content_type="image/png")
+            r = await client.post("/api/admin/upload", data=form, headers=tma(CASHIER))
+            assert r.status == 403
+
+            # administrator: menyu va statistika — mumkin, adminlarni boshqarish — yo'q
+            r = await client.patch("/api/admin/products/classic", json={"price": 33000}, headers=tma(MANAGER))
+            assert r.status == 200
+            assert (await client.get("/api/admin/stats", headers=tma(MANAGER))).status == 200
+            r = await client.post("/api/admin/admins", json={"user_id": 5, "role": "admin"}, headers=tma(MANAGER))
+            assert r.status == 403 and (await r.json())["error"] == "owner_only"
+
+            # ega rolni o'zgartiradi: kassir -> administrator
+            await client.post("/api/admin/admins", json={"user_id": CASHIER, "name": "Kassa", "role": "admin"}, headers=tma())
+            assert (await client.get("/api/admin/stats", headers=tma(CASHIER))).status == 200
+            admins = (await (await client.get("/api/admin/admins", headers=tma())).json())["admins"]
+            assert {a["user_id"]: a["role"] for a in admins} == {CASHIER: "admin", MANAGER: "admin"}
+        finally:
+            await close(client, ctx)
+    run(go())
+
+
+def test_old_admins_table_gets_role_column(tmp_path):
+    import aiosqlite
+
+    async def go():
+        path = tmp_path / "old.db"
+        async with aiosqlite.connect(path) as conn:
+            await conn.execute("CREATE TABLE admins (user_id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', "
+                               "created_at TEXT NOT NULL)")
+            await conn.execute("INSERT INTO admins VALUES (5, 'Eski', '2026-01-01')")
+            await conn.commit()
+        db = Database(path)
+        await db.connect()
+        try:
+            assert (await db.list_admins())[0]["role"] == "admin"  # eski adminlar to'liq huquqli qoladi
+        finally:
+            await db.close()
+    run(go())

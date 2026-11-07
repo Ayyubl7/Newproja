@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE TABLE IF NOT EXISTS admins (
     user_id    INTEGER PRIMARY KEY,
     name       TEXT NOT NULL DEFAULT '',
+    role       TEXT NOT NULL DEFAULT 'admin',
     created_at TEXT NOT NULL
 );
 """
@@ -145,12 +146,19 @@ class Database:
         await self._conn.execute("PRAGMA synchronous=NORMAL")
         await self._conn.execute("PRAGMA busy_timeout=5000")
         await self._conn.executescript(SCHEMA)
+        await self._migrate()
         cur = await self._conn.execute("SELECT seq FROM sqlite_sequence WHERE name='orders'")
         if await cur.fetchone() is None:
             await self._conn.execute(
                 "INSERT INTO sqlite_sequence(name, seq) VALUES ('orders', ?)", (FIRST_ORDER_ID - 1,)
             )
         await self._conn.commit()
+
+    async def _migrate(self) -> None:
+        """Eski bazalarga yangi ustunlarni qo'shish."""
+        cur = await self.conn.execute("PRAGMA table_info(admins)")
+        if "role" not in {r[1] for r in await cur.fetchall()}:
+            await self.conn.execute("ALTER TABLE admins ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -409,11 +417,11 @@ class Database:
     async def list_admins(self) -> list[dict[str, Any]]:
         return await self._all("SELECT * FROM admins ORDER BY created_at")
 
-    async def add_admin(self, user_id: int, name: str) -> None:
+    async def add_admin(self, user_id: int, name: str, role: str = "admin") -> None:
         await self.conn.execute(
-            "INSERT INTO admins(user_id, name, created_at) VALUES (?, ?, ?) "
-            "ON CONFLICT(user_id) DO UPDATE SET name=excluded.name",
-            (user_id, name, _now()),
+            "INSERT INTO admins(user_id, name, role, created_at) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET name=excluded.name, role=excluded.role",
+            (user_id, name, role, _now()),
         )
         await self.conn.commit()
 

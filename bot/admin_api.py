@@ -39,7 +39,7 @@ from .catalog import (
     today_local,
 )
 from .config import WEBAPP_DIR
-from .context import AppContext, spawn
+from .context import FULL_ROLES, ROLES, AppContext, spawn
 from .db import days_ago_utc, local_time
 from .keyboards import webapp_url
 from .orders import ACTIVE_STATUSES, apply_status, notify_user_status, sync_admin_message
@@ -65,6 +65,11 @@ _RK = getattr(web, "RequestKey", None)
 ADMIN_ID: Any = _RK("admin_id", int) if _RK else "admin_id"
 ADMIN_NAME: Any = _RK("admin_name", str) if _RK else "admin_name"
 IS_OWNER: Any = _RK("is_owner", bool) if _RK else "is_owner"
+ROLE: Any = _RK("role", str) if _RK else "role"
+
+# Kassir o'zgartira oladigan maydonlar
+CASHIER_PRODUCT_FIELDS = {"available"}
+CASHIER_STORE_FIELDS = {"accepting"}
 
 
 # =====================================================================  kirish
@@ -89,8 +94,8 @@ def read_session(ctx: AppContext, value: str) -> int | None:
         return None
 
 
-def _authenticate(request: web.Request) -> tuple[int, str, bool]:
-    """(user_id, ism, ega-mi). Xato bo'lsa ApiError."""
+def _authenticate(request: web.Request) -> tuple[int, str, str]:
+    """(user_id, ism, rol). Xato bo'lsa ApiError."""
     ctx = request.app[CTX_KEY]
     header = request.headers.get("Authorization", "")
     uid: int | None = None
@@ -110,19 +115,31 @@ def _authenticate(request: web.Request) -> tuple[int, str, bool]:
             raise ApiError(403, "csrf")
     if uid is None:
         if ctx.settings.dev_mode:
-            return ctx.settings.dev_user_id or 1, "Dev", True
+            return ctx.settings.dev_user_id or 1, "Dev", "owner"
         raise ApiError(401, "unauthorized")
-    if not ctx.is_panel_admin(uid):
+    role = ctx.role_of(uid)
+    if role is None:
         raise ApiError(403, "forbidden", user_id=uid)
-    return uid, name, ctx.is_owner(uid)
+    return uid, name, role
 
 
-def admin_route(handler: Handler) -> Callable[[web.Request], Awaitable[web.StreamResponse]]:
-    async def wrapper(request: web.Request) -> web.StreamResponse:
-        uid, name, owner = _authenticate(request)
-        request[ADMIN_ID], request[ADMIN_NAME], request[IS_OWNER] = uid, name, owner
-        return await handler(request, request.app[CTX_KEY])
-    return wrapper
+def admin_route(handler: Handler | None = None, *, cashier: bool = False):
+    """Admin API marshruti. Standart holatda kassirga yopiq; cashier=True — kassir ham kira oladi."""
+    def decorate(fn: Handler) -> Callable[[web.Request], Awaitable[web.StreamResponse]]:
+        async def wrapper(request: web.Request) -> web.StreamResponse:
+            uid, name, role = _authenticate(request)
+            if role not in FULL_ROLES and not cashier:
+                raise ApiError(403, "role_forbidden")
+            request[ADMIN_ID], request[ADMIN_NAME], request[ROLE] = uid, name, role
+            request[IS_OWNER] = role == "owner"
+            return await fn(request, request.app[CTX_KEY])
+        return wrapper
+    return decorate(handler) if handler is not None else decorate
+
+
+def _cashier_only(request: web.Request, body: dict[str, Any], allowed: set[str]) -> None:
+    if request[ROLE] not in FULL_ROLES and not set(body) <= allowed:
+        raise ApiError(403, "role_forbidden")
 
 
 async def _admin_display_name(request: web.Request, ctx: AppContext) -> str:
@@ -252,10 +269,10 @@ async def _drop_image_if_unused(ctx: AppContext, image: str) -> None:
 
 
 # =====================================================================  profil
-@admin_route
+@admin_route(cashier=True)
 async def me(request: web.Request, ctx: AppContext) -> web.Response:
     return ok(user={"id": request[ADMIN_ID], "name": await _admin_display_name(request, ctx)},
-              is_owner=request[IS_OWNER], lang=ctx.settings.admin_lang,
+              is_owner=request[IS_OWNER], role=request[ROLE], lang=ctx.settings.admin_lang,
               store_name=ctx.catalog.store.get("name", ""))
 
 
@@ -308,7 +325,7 @@ def _promo_state(p: dict[str, Any], today: date) -> str:
     return "expired"
 
 
-@admin_route
+@admin_route(cashier=True)
 async def get_menu(request: web.Request, ctx: AppContext) -> web.Response:
     today = today_local()
     products = []
@@ -410,13 +427,15 @@ async def create_product(request: web.Request, ctx: AppContext) -> web.Response:
     return ok(product=await ctx.db.get_product(pid))
 
 
-@admin_route
+@admin_route(cashier=True)
 async def update_product(request: web.Request, ctx: AppContext) -> web.Response:
     pid = request.match_info["id"]
+    body = await _json(request)
+    _cashier_only(request, body, CASHIER_PRODUCT_FIELDS)  # kassir faqat stop-list
     current = await ctx.db.get_product(pid)
     if not current:
         raise ApiError(404, "not_found")
-    data = _parse_product(await _json(request), partial=True)
+    data = _parse_product(body, partial=True)
     await _check_product(ctx, {**current, **data})
     await ctx.db.update_product(pid, data)
     if "image" in data and data["image"] != current["image"]:
@@ -614,14 +633,15 @@ def _validate_store(s: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-@admin_route
+@admin_route(cashier=True)
 async def get_store(request: web.Request, ctx: AppContext) -> web.Response:
     return ok(store=ctx.catalog.store, live_payments=list(LIVE_PAYMENT_METHODS))
 
 
-@admin_route
+@admin_route(cashier=True)
 async def patch_store(request: web.Request, ctx: AppContext) -> web.Response:
     body = await _json(request)
+    _cashier_only(request, body, CASHIER_STORE_FIELDS)  # kassir faqat buyurtmani to'xtatadi/yoqadi
     merged = _merge(ctx.catalog.store, body)
     store = _validate_store(normalize_store(merged))
     await ctx.db.set_setting("store", store)
@@ -643,7 +663,7 @@ def _order_out(o: dict[str, Any], users: dict[int, dict[str, Any]]) -> dict[str,
     }
 
 
-@admin_route
+@admin_route(cashier=True)
 async def list_orders(request: web.Request, ctx: AppContext) -> web.Response:
     tab = request.query.get("tab", "active")
     q = request.query.get("q", "").strip()[:40]
@@ -661,7 +681,7 @@ async def list_orders(request: web.Request, ctx: AppContext) -> web.Response:
     return ok(orders=[_order_out(o, users) for o in orders], has_more=more)
 
 
-@admin_route
+@admin_route(cashier=True)
 async def set_order_status(request: web.Request, ctx: AppContext) -> web.Response:
     raw = request.match_info["id"]
     if not raw.isdigit():
@@ -750,7 +770,10 @@ async def add_admin(request: web.Request, ctx: AppContext) -> web.Response:
     body = await _json(request)
     uid = v_int(body, "user_id", 1, 10**13)
     name = v_str(body, "name", 60)
-    await ctx.db.add_admin(uid, name)
+    role = v_choice({"role": body.get("role", "admin")}, "role", ROLES)
+    if ctx.is_owner(uid):
+        raise _bad("user_id", "already_owner")
+    await ctx.db.add_admin(uid, name, role)
     await ctx.reload_admins()
     return ok()
 
