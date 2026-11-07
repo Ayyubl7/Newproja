@@ -22,12 +22,15 @@ async def ensure_seeded(db: Database, data_dir: Path) -> None:
                 "icon": c.get("icon", "burger"), "sort": i, "visible": True,
             })
         for i, p in enumerate(menu["products"]):
+            variants = p.get("variants") or []
             await db.create_product(p["id"], {
+                "variants": variants,
                 "category_id": p["category"],
                 "name_uz": p["name"]["uz"], "name_ru": p["name"].get("ru", ""),
                 "desc_uz": (p.get("description") or {}).get("uz", ""),
                 "desc_ru": (p.get("description") or {}).get("ru", ""),
-                "price": int(p["price"]), "image": p.get("image") or "", "badge": p.get("badge") or "",
+                "price": min(v["price"] for v in variants) if variants else int(p["price"]),
+                "image": p.get("image") or "", "badge": p.get("badge") or "",
                 "available": True, "visible": True, "sort": i,
             })
         for pid in await db.pop_legacy_stoplist():

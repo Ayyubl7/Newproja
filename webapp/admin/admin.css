@@ -1,18 +1,18 @@
 /* ============ Ayva Burgers — Admin panel ============ */
 :root {
-  --bg: #FFF8EE;
+  --bg: #F3F1EE;
   --surface: #FFFFFF;
-  --surface-2: #FBEFDB;
-  --text: #24170E;
-  --text-2: #5E4A38;
-  --muted: #8A7461;
-  --line: #F0E2CB;
-  --grid: #F3E9DA;
-  --accent: #F4AE16;
-  --accent-press: #E39D06;
-  --accent-ink: #261703;
-  --accent-soft: #FFF0C8;
-  --chart: #B86E00;
+  --surface-2: #F0EDE9;
+  --text: #121212;
+  --text-2: #3D3935;
+  --muted: #7B746D;
+  --line: #E6E1DB;
+  --grid: #EEEAE5;
+  --accent: #E2000D;
+  --accent-press: #C2000B;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #FDE8E9;
+  --chart: #E2000D;
   --leaf: #3F8A35;
   --danger: #D64545;
   --danger-soft: #FDECEC;
@@ -25,26 +25,26 @@
   --tint-combo: #FFE6B5; --tint-burgers: #FFE2C6; --tint-hotdogs: #FFDCD0; --tint-snacks: #FFF0B8;
   --tint-sauces: #FFE4D8; --tint-drinks: #E3F1FF; --tint-default: #FBEFDB;
   --radius: 20px;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --display: "Unbounded", var(--font);
+  --font: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --display: "Oswald", "Montserrat", Impact, sans-serif;
   --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-safe-area-inset-bottom, 0px));
   --tabbar-h: 64px;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #15110C;
-  --surface: #211A13;
-  --surface-2: #2B2219;
-  --text: #F8EEDF;
-  --text-2: #D9C8B2;
-  --muted: #B09A82;
-  --line: #3A2E22;
-  --grid: #30261C;
-  --accent: #FFB81C;
-  --accent-press: #F0A800;
-  --accent-ink: #1E1203;
-  --accent-soft: #3A2C10;
-  --chart: #C98204;
+  --bg: #0B0B0B;
+  --surface: #181818;
+  --surface-2: #222222;
+  --text: #F4F2F0;
+  --text-2: #D6D1CC;
+  --muted: #9D968F;
+  --line: #2B2B2B;
+  --grid: #262626;
+  --accent: #F01826;
+  --accent-press: #D10F1C;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #3A1416;
+  --chart: #F01826;
   --leaf: #6DBF5C;
   --danger: #FF6B6B;
   --danger-soft: #3A1E1E;
@@ -75,7 +75,8 @@ a { color: inherit; }
 .topbar__logo { width: 38px; height: 38px; border-radius: 12px; flex: none; }
 .topbar__title { flex: 1; min-width: 0; }
 .topbar__kicker { font-size: 12px; color: var(--muted); font-weight: 600; }
-.topbar__h { font-family: var(--display); font-weight: 800; font-size: 21px; line-height: 1.15; letter-spacing: -.01em; }
+.topbar__h { font-family: var(--display); font-weight: 700; font-size: 24px; line-height: 1.1; text-transform: uppercase; letter-spacing: .01em; }
+.card__title, .section-h h2, .cat-h h3, .sheet__head h2, .center-screen h1 { text-transform: uppercase; letter-spacing: .01em; }
 .page { padding: 0 16px; }
 .page.is-loading { opacity: .6; pointer-events: none; }
 
@@ -265,9 +266,9 @@ select.input { background-image: linear-gradient(45deg, transparent 50%, var(--m
 
 /* ============ Promos ============ */
 .banner-card { position: relative; display: flex; align-items: stretch; border-radius: var(--radius); overflow: hidden; margin-top: 12px; box-shadow: var(--shadow); background: var(--surface); cursor: pointer; }
-.banner-card__visual { width: 42%; min-height: 108px; flex: none; position: relative; background: linear-gradient(135deg, #F9B928 0%, #F29A12 100%); display: grid; place-items: center; }
+.banner-card__visual { width: 42%; min-height: 108px; flex: none; position: relative; background: linear-gradient(135deg, #E2000D 0%, #A8000A 100%); display: grid; place-items: center; }
 .banner-card__visual img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.banner-card__visual span { font-family: var(--display); font-weight: 800; color: #261703; font-size: 14px; padding: 10px; line-height: 1.15; text-align: left; }
+.banner-card__visual span { font-family: var(--display); font-weight: 700; color: #fff; font-size: 16px; padding: 10px; line-height: 1.1; text-align: left; text-transform: uppercase; }
 .banner-card__body { flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
 .banner-card__title { font-weight: 800; }
 .banner-card__meta { font-size: 12.5px; color: var(--muted); }
@@ -280,8 +281,8 @@ select.input { background-image: linear-gradient(45deg, transparent 50%, var(--m
 .kpi__label { font-size: 12.5px; font-weight: 700; color: var(--muted); }
 .kpi__value { font-weight: 800; font-size: 21px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .kpi__sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-.kpi--hero { grid-column: 1 / -1; background: linear-gradient(135deg, #F9B928 0%, #F29A12 100%); color: #261703; }
-.kpi--hero .kpi__label, .kpi--hero .kpi__sub { color: rgba(38, 23, 3, .72); }
+.kpi--hero { grid-column: 1 / -1; background: linear-gradient(135deg, #E2000D 0%, #A8000A 100%); color: #fff; }
+.kpi--hero .kpi__label, .kpi--hero .kpi__sub { color: rgba(255, 255, 255, .78); }
 .kpi--hero .kpi__value { font-family: var(--display); font-size: 28px; }
 
 .chart { position: relative; }
@@ -346,6 +347,9 @@ select.input { background-image: linear-gradient(45deg, transparent 50%, var(--m
 .sheet__foot .btn--primary { flex: 1; }
 
 /* ============ Toast ============ */
+.var-row { display: grid; grid-template-columns: 1fr 1fr 96px 36px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.var-row .input { height: 42px; padding: 0 10px; font-size: 15px; background: var(--surface); }
+@media (max-width: 420px) { .var-row { grid-template-columns: 1fr 1fr 84px 32px; } }
 .toast {
   position: fixed; z-index: 90; left: 50%; top: 12px; transform: translate(-50%, -150%); opacity: 0; visibility: hidden;
   max-width: calc(100% - 32px); width: max-content; padding: 12px 16px; border-radius: 16px;

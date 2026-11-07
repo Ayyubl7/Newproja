@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 import pytest
 
 from bot.catalog import TASHKENT_TZ, Catalog, OrderError, fmt_money, promo_active, today_local
-from bot.config import DATA_DIR
+from tests.conftest import FIXTURES as DATA_DIR
 from bot.db import Database
 from bot.seed import ensure_seeded
 
@@ -148,3 +148,58 @@ def test_banners_respect_dates_and_links(catalog):
 def test_fmt_money():
     assert fmt_money(125000) == "125 000 so'm"
     assert fmt_money(5000, "ru") == "5 000 сум"
+
+
+def test_real_menu_seeds_with_variants_and_images(tmp_path):
+    from bot.config import DATA_DIR as REAL_DATA, WEBAPP_DIR
+
+    async def go():
+        db = Database(tmp_path / "real.db")
+        await db.connect()
+        await ensure_seeded(db, REAL_DATA)
+        cat = await Catalog.from_db(db)
+        await db.close()
+        return cat
+
+    cat = asyncio.run(go())
+    assert len(cat.products) >= 40
+    for p in cat.products.values():
+        assert p["image"], p["id"]
+        assert (WEBAPP_DIR / p["image"]).exists(), p["image"]
+        if p["variants"]:
+            assert p["price"] == min(v["price"] for v in p["variants"])
+    pizza = cat.products["pizza-pepperoni"]
+    assert [v["name"]["uz"] for v in pizza["variants"]] == ["Kichik", "O'rta", "Katta"]
+    assert cat.store["name"] == "Ayva Burgers"
+
+
+def test_variants_in_quote_and_menu(tmp_path):
+    from bot.config import DATA_DIR as REAL_DATA
+
+    async def go():
+        db = Database(tmp_path / "v.db")
+        await db.connect()
+        await ensure_seeded(db, REAL_DATA)
+        cat = await Catalog.from_db(db)
+        await db.close()
+        return cat
+
+    cat = asyncio.run(go())
+    q = cat.quote([{"id": "pizza-pepperoni", "qty": 1, "v": 2}, {"id": "pizza-pepperoni", "qty": 1, "v": 2},
+                   {"id": "fries", "qty": 1}], "pickup")
+    assert [(line.product_id, line.variant, line.qty, line.price) for line in q.lines] == [
+        ("pizza-pepperoni", 2, 2, 70000), ("fries", None, 1, 12000)]
+    assert q.lines[0].name["uz"] == "Pepperoni (Katta)" and q.lines[0].as_dict()["v"] == 2
+    for bad in ([{"id": "pizza-pepperoni", "qty": 1}], [{"id": "pizza-pepperoni", "qty": 1, "v": 3}],
+                [{"id": "fries", "qty": 1, "v": 1}], [{"id": "pizza-pepperoni", "qty": 1, "v": True}]):
+        with pytest.raises(OrderError) as e:
+            cat.quote(bad, "pickup")
+        assert e.value.code == "bad_variant"
+
+    # aksiya foizi har bir variantga qo'llanadi: 45 000 -> 36 000 (-20%), katta 70 000 -> 56 000
+    cat.products["pizza-pepperoni"]["promo_price"] = 36000
+    q = cat.quote([{"id": "pizza-pepperoni", "qty": 1, "v": 2}], "pickup")
+    assert q.subtotal == 56000
+    item = next(p for p in cat.public_menu()["products"] if p["id"] == "pizza-pepperoni")
+    assert item["price"] == 36000 and item["old_price"] == 45000
+    assert [(v["price"], v["old_price"]) for v in item["variants"]] == [(36000, 45000), (48000, 60000), (56000, 70000)]

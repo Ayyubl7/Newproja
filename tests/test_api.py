@@ -13,7 +13,8 @@ from aiohttp.test_utils import TestClient, TestServer
 
 import bot.web as web_module
 from bot.catalog import Catalog
-from bot.config import DATA_DIR, Settings
+from bot.config import Settings
+from tests.conftest import FIXTURES as DATA_DIR
 from bot.context import AppContext
 from bot.db import Database
 from bot.orders import TRANSITIONS, admin_keyboard, admin_text, can_transition, user_order_created_text
@@ -146,7 +147,7 @@ def test_order_happy_path_and_server_side_pricing(tmp_path):
 
 @pytest.mark.parametrize("patch, code", [
     ({"phone": "123"}, "bad_phone"),
-    ({"address": "x"}, "bad_address"),
+    ({"address": "x", "lat": None, "lon": None}, "bad_address"),
     ({"payment": "click"}, "payment_unavailable"),
     ({"type": "teleport"}, "bad_type"),
     ({"items": [{"id": "water", "qty": 1}]}, "min_order"),
@@ -229,3 +230,26 @@ def test_admin_keyboard_per_status(tmp_path):
     assert admin_keyboard(ctx, order).inline_keyboard[0][0].callback_data == "o:5:on_the_way"
     order["status"] = "done"
     assert admin_keyboard(ctx, order) is None
+
+
+def test_delivery_with_telegram_location_only(tmp_path):
+    async def go():
+        client, ctx = await _client(tmp_path, [])
+        try:
+            body = {**ORDER, "address": "", "lat": 40.5286, "lon": 70.9425}
+            r = await client.post("/api/order", json=body, headers=auth(9))
+            assert r.status == 200, await r.text()
+            order = await ctx.db.get_order((await r.json())["order"]["id"])
+            assert order["address"].startswith("📍 40.52860") and order["lat"] == 40.5286
+            boot = await (await client.get("/api/bootstrap", headers=auth(9))).json()
+            assert boot["profile"]["lat"] == 40.5286 and boot["profile"]["type"] == "delivery"
+            # ikkinchi buyurtma podyezd bilan — saqlangan manzil o'zgarmaydi
+            web_module._last_order_at.clear()
+            saved = boot["profile"]["address"]
+            body2 = {**body, "address": saved + " — 2-podyezd"}
+            assert (await client.post("/api/order", json=body2, headers=auth(9))).status == 200
+            boot = await (await client.get("/api/bootstrap", headers=auth(9))).json()
+            assert boot["profile"]["address"] == saved
+        finally:
+            await _close(client, ctx)
+    run(go())

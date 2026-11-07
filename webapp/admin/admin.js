@@ -38,6 +38,10 @@
       f_promo_from: 'Boshlanishi', f_promo_to: 'Tugashi', f_available: 'Sotuvda bor', f_available_sub: "O'chirilsa menyuda «Tugagan» bo'lib turadi",
       f_visible: "Menyuda ko'rsatish", f_visible_sub: "O'chirilsa mijozlar umuman ko'rmaydi",
       ru_hint: "Bo'sh qolsa o'zbekchasi ko'rsatiladi", photo_hint: 'Kvadrat yoki 4:3 surat yaxshi chiqadi. Avtomatik kichraytiriladi.',
+      f_variants: "Variantlar (o'lcham yoki tur)", f_variants_sub: "Masalan: Kichik / O'rta / Katta yoki Mini / Extra",
+      var_name_uz: "Nomi (uz)", var_name_ru: 'Nomi (ru)', var_price: "Narxi", add_variant: "Variant qo'shish",
+      price_from_variants: "Asosiy narx — eng arzon variant narxi", promo_variants_hint: "Chegirma foizi barcha variantlarga qo'llanadi",
+      variants_n: '{n} xil', price_from: 'dan', e_variants: "har bir variantga nom va narx kiriting",
       badge_: "Yo'q", badge_hit: '🔥 Hit', badge_new: '✨ Yangi', badge_spicy: '🌶 Achchiq',
       promo_toggle: 'Chegirma (aksiya) narxi', promo_toggle_sub: "Eski narx ustidan chizilib ko'rsatiladi",
       promo_dates_hint: "Sanalar bo'sh qolsa — aksiya darhol boshlanadi va o'zingiz o'chirguningizcha davom etadi.",
@@ -128,6 +132,10 @@
       f_promo_from: 'Начало', f_promo_to: 'Конец', f_available: 'В продаже', f_available_sub: 'Если выключить — в меню будет «Закончился»',
       f_visible: 'Показывать в меню', f_visible_sub: 'Если выключить — клиенты не увидят товар',
       ru_hint: 'Если пусто — покажем узбекское', photo_hint: 'Лучше квадратное фото или 4:3. Уменьшается автоматически.',
+      f_variants: 'Варианты (размер или вид)', f_variants_sub: 'Например: Маленькая / Средняя / Большая или Мини / Экстра',
+      var_name_uz: 'Название (uz)', var_name_ru: 'Название (ru)', var_price: 'Цена', add_variant: 'Добавить вариант',
+      price_from_variants: 'Основная цена — цена самого дешёвого варианта', promo_variants_hint: 'Процент скидки применяется ко всем вариантам',
+      variants_n: '{n} вида', price_from: 'от', e_variants: 'укажите название и цену для каждого варианта',
       badge_: 'Нет', badge_hit: '🔥 Хит', badge_new: '✨ Новинка', badge_spicy: '🌶 Острое',
       promo_toggle: 'Акционная цена (скидка)', promo_toggle_sub: 'Старая цена будет зачёркнута',
       promo_dates_hint: 'Если даты пустые — акция начнётся сразу и будет действовать, пока вы её не выключите.',
@@ -325,13 +333,13 @@
     const nav = $('#nav');
     nav.hidden = false;
     nav.style.gridTemplateColumns = `repeat(${pages().length}, 1fr)`;
-    nav.innerHTML = `<div class="nav__brand"><img src="/static/img/logo.svg" alt="">${esc(S.me.store_name || 'Ayva')}</div>` +
+    nav.innerHTML = `<div class="nav__brand"><img src="/static/img/logo-badge.png" alt="">${esc(S.me.store_name || 'Ayva')}</div>` +
       pages().map((p) => `<button class="nav__item ${S.page === p ? 'is-active' : ''}" data-action="nav" data-page="${p}">
         ${ICON[p]}<span>${t('nav_' + p)}</span>${p === 'orders' && S.activeCount ? `<span class="nav__badge">${S.activeCount}</span>` : ''}
       </button>`).join('');
   }
   function renderTopbar() {
-    $('#topbar').innerHTML = `<img class="topbar__logo" src="/static/img/logo.svg" alt="">
+    $('#topbar').innerHTML = `<img class="topbar__logo" src="/static/img/logo-badge.png" alt="">
       <div class="topbar__title"><div class="topbar__kicker">${esc(S.me.store_name || '')} · ${t('role_' + (S.me.role || 'admin'))}</div>
       <div class="topbar__h">${t('nav_' + S.page)}</div></div>`;
   }
@@ -475,7 +483,9 @@
     }
     let extra = '';
     if (p.promo_price && p.promo_state === 'scheduled') extra = `<span class="tag tag--info">${t('state_scheduled')}</span>`;
-    return `<span class="price">${money(p.price)}</span>${extra}`;
+    if (p.variants && p.variants.length) extra += `<span class="tag">${t('variants_n', { n: p.variants.length })}</span>`;
+    const from = p.variants && p.variants.length ? `<span class="muted small">${t('price_from')}</span>` : '';
+    return S.lang === 'ru' ? `${from}<span class="price">${money(p.price)}</span>${extra}` : `<span class="price">${money(p.price)}</span>${from}${extra}`;
   }
 
   function productRow(p, opts = {}) {
@@ -617,10 +627,11 @@
     const isNew = !id;
     const firstCat = (S.menuFilter !== 'all' && S.menuFilter) || (S.menu.categories[0] || {}).id;
     const p = isNew ? { name_uz: '', name_ru: '', desc_uz: '', desc_ru: '', category_id: opts.cat || firstCat, price: '',
-      promo_price: null, promo_from: null, promo_to: null, image: '', badge: '', available: true, visible: true }
+      promo_price: null, promo_from: null, promo_to: null, image: '', badge: '', available: true, visible: true, variants: [] }
       : S.menu.products.find((x) => x.id === id);
     if (!p) return;
     const promoOn = !!p.promo_price || !!opts.promo;
+    const varsOn = !!(p.variants && p.variants.length);
     const view = {
       title: isNew ? t('add_product') : t('edit_product'),
       body: () => `<form id="pform" onsubmit="return false">
@@ -632,7 +643,15 @@
         <div class="grid2">
           ${field(t('f_category_id') + ' <b>*</b>', `<select class="input" name="category_id">${S.menu.categories.map((c) =>
             `<option value="${esc(c.id)}" ${c.id === p.category_id ? 'selected' : ''}>${esc(nameOf(c))}</option>`).join('')}</select>`)}
-          ${field(t('f_price') + ' <b>*</b>', numInp('price', p.price, 'min="100" data-live'))}
+          ${field(t('f_price') + ' <b>*</b>', numInp('price', p.price, `min="100" data-live ${varsOn ? 'disabled' : ''}`), `<span id="price-hint" ${varsOn ? '' : 'hidden'}>${t('price_from_variants')}</span>`)}
+        </div>
+        <div class="promo-box">
+          ${switchRow('_variants', varsOn, t('f_variants'), t('f_variants_sub'), 'data-variants-toggle')}
+          <div id="variants-box" ${varsOn ? '' : 'hidden'}>
+            <div class="var-row small muted" style="margin-bottom:2px"><span>${t('var_name_uz')}</span><span>${t('var_name_ru')}</span><span>${t('var_price')}</span><span></span></div>
+            <div id="variants-list">${(varsOn ? p.variants : [{ uz: '', ru: '', price: '' }]).map(varRow).join('')}</div>
+            <button type="button" class="btn btn--sm" data-action="add-variant">${ICON.plus.replace('<svg', '<svg width="16" height="16"')} ${t('add_variant')}</button>
+          </div>
         </div>
         <div class="field"><span class="field__label">${t('f_badge')}</span>
           <input type="hidden" name="badge" value="${esc(p.badge)}">
@@ -649,6 +668,7 @@
               ${field(t('f_promo_to'), `<input class="input" type="date" name="promo_to" value="${esc(p.promo_to || '')}">`)}
             </div>
             <div class="field__hint" style="margin-top:-4px">${t('promo_dates_hint')}</div>
+            <div class="field__hint" id="promo-var-hint" ${varsOn ? '' : 'hidden'}>${t('promo_variants_hint')}</div>
           </div>
         </div>
         <div class="card" style="margin-top:0;padding:4px 16px">
@@ -666,10 +686,31 @@
     openSheet(view);
   }
 
+  function varRow(v) {
+    return `<div class="var-row"><input class="input" data-var="uz" maxlength="30" placeholder="Kichik" value="${esc(v.uz || '')}">
+      <input class="input" data-var="ru" maxlength="30" placeholder="Маленькая" value="${esc(v.ru || '')}">
+      <input class="input" data-var="price" data-live type="number" inputmode="numeric" min="100" placeholder="45000" value="${v.price || ''}">
+      <button type="button" class="icon-btn" data-action="remove-variant" aria-label="${t('delete')}">${ICON.close}</button></div>`;
+  }
+  function readVariants(root) {
+    return $$('#variants-list .var-row', root).map((row) => ({
+      uz: $('[data-var="uz"]', row).value.trim(), ru: $('[data-var="ru"]', row).value.trim(),
+      price: Number($('[data-var="price"]', row).value) || 0,
+    })).filter((v) => v.uz || v.ru || v.price);
+  }
+  const variantsOn = (root) => !!$('[name="_variants"]', root) && $('[name="_variants"]', root).checked;
+  function basePrice(root) {
+    if (variantsOn(root)) {
+      const prices = readVariants(root).map((v) => v.price).filter(Boolean);
+      return prices.length ? Math.min(...prices) : 0;
+    }
+    return Number($('[name="price"]', root).value) || 0;
+  }
+
   function updatePromoPreview(root) {
     const box = $('#promo-preview', root);
     if (!box) return;
-    const price = Number($('[name="price"]', root).value) || 0;
+    const price = basePrice(root);
     const promo = Number($('[name="promo_price"]', root).value) || 0;
     if (!price || !promo) { box.innerHTML = ''; return; }
     if (promo >= price) { box.innerHTML = `<span class="tag tag--danger">${t('f_promo_price')}: ${t('e_promo_not_lower')}</span>`; return; }
@@ -681,9 +722,15 @@
     const root = $('#pform');
     const f = readForm(root);
     const promoOn = f._promo;
+    const varsOn = f._variants;
+    const variants = varsOn ? readVariants(root) : [];
+    if (varsOn && (!variants.length || variants.some((v) => !v.uz || !v.price || v.price < 100))) {
+      return toast(`${t('f_variants')}: ${t('e_variants')}`, 'error');
+    }
     const body = {
       name_uz: f.name_uz.trim(), name_ru: f.name_ru.trim(), desc_uz: f.desc_uz.trim(), desc_ru: f.desc_ru.trim(),
-      category_id: f.category_id, price: f.price, badge: f.badge, image: f.image,
+      category_id: f.category_id, price: varsOn ? Math.min(...variants.map((v) => v.price)) : f.price, badge: f.badge, image: f.image,
+      variants,
       available: f.available, visible: f.visible,
       promo_price: promoOn ? f.promo_price : null,
       promo_from: promoOn ? (f.promo_from || null) : null,
@@ -975,7 +1022,7 @@
         const dd = r.date.slice(8, 10) + '.' + r.date.slice(5, 7);
         return { label: dd, value: r.revenue, tip: `<b>${dd}</b><br>${t('col_revenue')}: ${money(r.revenue)}<br>${t('col_orders')}: ${r.orders}` };
       });
-      const hasData = d.daily.some((r) => r.revenue || r.orders);
+      const hasData = d.daily.some((r) => r.revenue);
       const table = `<table class="dtable"><thead><tr><th>${t('col_date')}</th><th>${t('col_orders')}</th><th>${t('col_revenue')}</th></tr></thead>
         <tbody>${d.daily.slice().reverse().map((r) => `<tr><td>${fmtDate(r.date)}</td><td>${r.orders}</td><td>${money(r.revenue)}</td></tr>`).join('')}</tbody></table>`;
       daily = `<div class="card"><div class="card__h"><h3 class="card__title">${t('daily_revenue')}</h3>
@@ -1295,7 +1342,7 @@
         $('#pform [name="badge"]').value = el.dataset.badge; haptic('select'); break;
       case 'pct': {
         const root = $('#pform');
-        const price = Number($('[name="price"]', root).value) || 0;
+        const price = basePrice(root);
         if (price) $('[name="promo_price"]', root).value = Math.round(price * (100 - Number(el.dataset.pct)) / 100 / 100) * 100;
         updatePromoPreview(root); haptic('select'); break;
       }
@@ -1305,6 +1352,8 @@
       case 'save-category': await saveCategory(id); break;
       case 'delete-category': await deleteCategory(id); break;
       case 'move-category': await moveCategory(id, Number(el.dataset.dir)); break;
+      case 'add-variant': $('#variants-list').insertAdjacentHTML('beforeend', varRow({})); $('#variants-list .var-row:last-child input').focus(); break;
+      case 'remove-variant': el.closest('.var-row').remove(); updatePromoPreview($('#pform')); break;
       case 'pick-role':
         $$('.role-pick button').forEach((b) => b.classList.toggle('is-active', b === el));
         $('#aform [name="role"]').value = el.dataset.role; haptic('select'); break;
@@ -1350,7 +1399,14 @@
     if (el.dataset.toggle === 'available') toggleAvailable(el.dataset.id, el.checked, el);
     else if (el.dataset.toggle === 'accepting') setAccepting(el.checked, el);
     else if (el.dataset.roleSelect !== undefined) setRole(el);
-    else if (el.dataset.promoToggle !== undefined) {
+    else if (el.dataset.variantsToggle !== undefined) {
+      const root = $('#pform');
+      $('#variants-box', root).hidden = !el.checked;
+      $('[name="price"]', root).disabled = el.checked;
+      $('#price-hint', root).hidden = !el.checked;
+      $('#promo-var-hint', root).hidden = !el.checked;
+      updatePromoPreview(root);
+    } else if (el.dataset.promoToggle !== undefined) {
       const box = $('#promo-fields');
       box.hidden = !el.checked;
       if (el.checked) $('[name="promo_price"]', box).focus();
@@ -1402,7 +1458,7 @@
   function screen(title, text) {
     $('#nav').hidden = true;
     $('#topbar').innerHTML = '';
-    $('#page').innerHTML = `<div class="center-screen"><div><img src="/static/img/logo.svg" alt=""><h1>${title}</h1><p>${text}</p></div></div>`;
+    $('#page').innerHTML = `<div class="center-screen"><div><img src="/static/img/logo-badge.png" alt=""><h1>${title}</h1><p>${text}</p></div></div>`;
   }
 
   async function init() {

@@ -32,6 +32,8 @@ class AppContext:
     # Kompyuterdan kirish uchun bir martalik havolalar: token -> (user_id, amal qilish muddati)
     login_tokens: dict[str, tuple[int, float]] = field(default_factory=dict)
     broadcast: dict[str, Any] = field(default_factory=lambda: {"running": False})
+    # Mini App ichidan "lokatsiyani Telegram orqali yuborish" so'ragan mijozlar
+    location_requests: set[int] = field(default_factory=set)
 
     # ---------- huquqlar ----------
     def is_owner(self, user_id: int | None) -> bool:

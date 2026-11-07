@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
@@ -16,7 +17,8 @@ PAYMENT_METHODS = ("cash", "click", "payme")
 # Hozircha faqat naqd. Click/Payme ulanmaguncha yoqib bo'lmaydi.
 LIVE_PAYMENT_METHODS = ("cash",)
 BADGES = ("", "hit", "new", "spicy")
-ICONS = ("burger", "combo", "hotdog", "fries", "sauce", "drink", "wrap", "chicken", "dessert")
+ICONS = ("burger", "pizza", "combo", "hotdog", "fries", "sauce", "drink", "wrap", "chicken", "dessert")
+MAX_VARIANTS = 12
 
 DEFAULT_STORE: dict[str, Any] = {
     "name": "Ayva Burgers",
@@ -50,13 +52,17 @@ class Line:
     name: dict[str, str]
     price: int
     qty: int
+    variant: int | None = None
 
     @property
     def total(self) -> int:
         return self.price * self.qty
 
     def as_dict(self) -> dict[str, Any]:
-        return {"id": self.product_id, "name": self.name, "price": self.price, "qty": self.qty}
+        d = {"id": self.product_id, "name": self.name, "price": self.price, "qty": self.qty}
+        if self.variant is not None:
+            d["v"] = self.variant
+        return d
 
 
 @dataclass
@@ -108,8 +114,21 @@ def category_from_row(r: dict[str, Any]) -> dict[str, Any]:
             "visible": bool(r["visible"]), "sort": r["sort"]}
 
 
+def parse_variants(raw: Any) -> list[dict[str, Any]]:
+    """Bazadagi JSON ([{uz, ru, price}]) -> [{name: {uz, ru}, price}]."""
+    if not raw:
+        return []
+    items = json.loads(raw) if isinstance(raw, str) else raw
+    return [{"name": _i18n(v.get("uz", ""), v.get("ru", "")), "price": int(v["price"])} for v in items]
+
+
+def variant_label(name: dict[str, str], variant: dict[str, Any]) -> dict[str, str]:
+    return {lang: f"{name[lang]} ({variant['name'][lang]})" for lang in ("uz", "ru")}
+
+
 def product_from_row(r: dict[str, Any]) -> dict[str, Any]:
     return {
+        "variants": parse_variants(r.get("variants")),
         "id": r["id"], "category": r["category_id"],
         "name": _i18n(r["name_uz"], r["name_ru"]),
         "description": _i18n(r["desc_uz"], r["desc_ru"]),
@@ -191,12 +210,16 @@ class Catalog:
     def is_available(self, product_id: str) -> bool:
         return self.is_shown(product_id) and self.products[product_id]["available"]
 
-    def price_of(self, product_id: str, today: date | None = None) -> tuple[int, int | None]:
-        """(amaldagi narx, eski narx yoki None)."""
+    def price_of(self, product_id: str, today: date | None = None, variant: int | None = None) -> tuple[int, int | None]:
+        """(amaldagi narx, eski narx yoki None). Variantli mahsulotda aksiya foizi har bir variantga qo'llanadi."""
         p = self.products[product_id]
-        if promo_active(p, today):
-            return int(p["promo_price"]), p["price"]
-        return p["price"], None
+        base = p["variants"][variant]["price"] if variant is not None and p["variants"] else p["price"]
+        if not promo_active(p, today):
+            return base, None
+        if base == p["price"]:
+            return int(p["promo_price"]), base
+        ratio = int(p["promo_price"]) / p["price"]
+        return max(100, round(base * ratio / 100) * 100), base
 
     def public_menu(self) -> dict[str, Any]:
         today = today_local()
@@ -206,8 +229,13 @@ class Catalog:
             if not self.is_shown(p["id"]):
                 continue
             price, old = self.price_of(p["id"], today)
+            variants = []
+            for i, v in enumerate(p["variants"]):
+                vp, vo = self.price_of(p["id"], today, i)
+                variants.append({"name": v["name"], "price": vp, "old_price": vo})
             items.append({
                 "id": p["id"], "category": p["category"], "name": p["name"], "description": p["description"],
+                "variants": variants,
                 "price": price, "old_price": old,
                 "discount": round((old - price) * 100 / old) if old else 0,
                 "image": p["image"], "badge": p["badge"], "available": p["available"],
@@ -262,26 +290,36 @@ class Catalog:
         if len(raw_items) > MAX_LINES:
             raise OrderError("too_many_items")
 
-        merged: dict[str, int] = {}
+        merged: dict[tuple[str, int | None], int] = {}
         for item in raw_items:
             if not isinstance(item, dict):
                 raise OrderError("bad_item")
-            pid, qty = item.get("id"), item.get("qty")
+            pid, qty, v = item.get("id"), item.get("qty"), item.get("v")
             if not isinstance(pid, str) or not self.is_shown(pid):
                 raise OrderError("unknown_product", product_id=str(pid))
             if not isinstance(qty, int) or isinstance(qty, bool) or qty < 1:
                 raise OrderError("bad_qty")
-            merged[pid] = merged.get(pid, 0) + qty
+            variants = self.products[pid]["variants"]
+            if variants:
+                if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v < len(variants):
+                    raise OrderError("bad_variant", product_id=pid)
+            elif v not in (None, 0):
+                raise OrderError("bad_variant", product_id=pid)
+            else:
+                v = None
+            merged[(pid, v)] = merged.get((pid, v), 0) + qty
 
         today = today_local()
         lines: list[Line] = []
-        for pid, qty in merged.items():
+        for (pid, v), qty in merged.items():
             if qty > MAX_QTY_PER_ITEM:
                 raise OrderError("bad_qty")
             if not self.is_available(pid):
                 raise OrderError("unavailable", product_id=pid, name=self.products[pid]["name"])
-            price, _ = self.price_of(pid, today)
-            lines.append(Line(product_id=pid, name=self.products[pid]["name"], price=price, qty=qty))
+            p = self.products[pid]
+            price, _ = self.price_of(pid, today, v)
+            name = variant_label(p["name"], p["variants"][v]) if v is not None else p["name"]
+            lines.append(Line(product_id=pid, name=name, price=price, qty=qty, variant=v))
 
         subtotal = sum(line.total for line in lines)
         min_order = int(type_cfg.get("min_order") or 0)

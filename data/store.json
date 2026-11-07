@@ -1,31 +1,32 @@
 {
   "name": "Ayva Burgers",
   "tagline": {
-    "uz": "Shirali burgerlar — eshigingizgacha",
-    "ru": "Сочные бургеры — до вашей двери"
+    "uz": "Birinchi ta'tib ko'rishdayoq sevib qolasiz!",
+    "ru": "Полюбите с первого укуса!"
   },
   "about": {
-    "uz": "Ayva Burgers — yangi mol go'shti, har kuni yopiladigan bulochka va o'zimizning ayva sousimiz. Har bir burger buyurtmadan keyin tayyorlanadi.",
-    "ru": "Ayva Burgers — свежая говядина, булочки собственной выпечки и наш фирменный айвовый соус. Каждый бургер готовим после заказа."
+    "uz": "Ayva Burgers — Qo'qondagi sevimli fast-food. Burgerlar, pitsalar, lavash, KFC va hot-doglar. Barcha mahsulotlar 100% halol.\n\nFiliallar:\n• CHPK — 08:00–03:00, +998 90 628 80 00\n• Charxiy — 24/7, +998 90 629 80 00\n• Navoiy — 08:00–00:00, +998 90 728 80 00",
+    "ru": "Ayva Burgers — любимый фастфуд Коканда. Бургеры, пицца, лаваш, KFC и хот-доги. Вся продукция 100% халяль.\n\nФилиалы:\n• ЧПК — 08:00–03:00, +998 90 628 80 00\n• Чархий — 24/7, +998 90 629 80 00\n• Навои — 08:00–00:00, +998 90 728 80 00"
   },
-  "phone": "+998 90 000 00 00",
-  "support_username": "",
-  "instagram": "",
+  "phone": "+998 90 628 80 00",
+  "support_username": "ayva_burgers",
+  "instagram": "ayva_burgers",
   "address": {
-    "uz": "Toshkent sh. (manzilni shu yerga yozing)",
-    "ru": "г. Ташкент (впишите адрес сюда)"
+    "uz": "Qo'qon, CHPK — Atlas magazin ro'parasida",
+    "ru": "Коканд, ЧПК — напротив магазина «Атлас»"
   },
   "location": null,
-  "hours": { "open": "10:00", "close": "02:00" },
+  "hours": { "open": "08:00", "close": "03:00" },
   "delivery": {
     "enabled": true,
-    "fee": 10000,
-    "free_from": 150000,
-    "min_order": 30000,
-    "eta": "40–60"
+    "fee": 0,
+    "free_from": 0,
+    "min_order": 0,
+    "eta": "30–50"
   },
   "pickup": {
     "enabled": true,
+    "min_order": 0,
     "eta": "15–20"
   },
   "payments": {

@@ -9,7 +9,7 @@ from PIL import Image
 
 import bot.web as web_module
 from bot.catalog import Catalog
-from bot.config import DATA_DIR
+from tests.conftest import FIXTURES as DATA_DIR
 from bot.context import AppContext
 from bot.db import Database
 from bot.seed import ensure_seeded
@@ -406,4 +406,39 @@ def test_old_admins_table_gets_role_column(tmp_path):
             assert (await db.list_admins())[0]["role"] == "admin"  # eski adminlar to'liq huquqli qoladi
         finally:
             await db.close()
+    run(go())
+
+
+def test_product_variants_via_admin(tmp_path):
+    async def go():
+        client, ctx, _ = await make_client(tmp_path)
+        try:
+            body = {"name_uz": "Lavash", "category_id": "burgers", "price": 1,
+                    "variants": [{"uz": "Mini", "ru": "Мини", "price": 20000}, {"uz": "Extra", "price": 25000}]}
+            r = await client.post("/api/admin/products", json=body, headers=tma())
+            assert r.status == 200, await r.text()
+            pid = (await r.json())["product"]["id"]
+            assert ctx.catalog.products[pid]["price"] == 20000  # eng arzon variant
+            menu = await (await client.get("/api/admin/menu", headers=tma())).json()
+            row = next(p for p in menu["products"] if p["id"] == pid)
+            assert row["variants"] == [{"uz": "Mini", "ru": "Мини", "price": 20000}, {"uz": "Extra", "ru": "", "price": 25000}]
+
+            # buyurtmada variant narxi
+            order = {**ORDER, "items": [{"id": pid, "qty": 2, "v": 1}], "type": "pickup", "address": "", "lat": None, "lon": None}
+            r = await client.post("/api/order", json=order, headers=tma(7))
+            assert (await r.json())["order"]["total"] == 50000
+            saved = await ctx.db.get_order((await r.json())["order"]["id"])
+            assert saved["items"][0]["name"]["uz"] == "Lavash (Extra)" and saved["items"][0]["v"] == 1
+
+            # variantlarni yangilash va o'chirish
+            r = await client.patch(f"/api/admin/products/{pid}", json={"variants": [{"uz": "Katta", "price": 30000}]}, headers=tma())
+            assert r.status == 200 and ctx.catalog.products[pid]["price"] == 30000
+            r = await client.patch(f"/api/admin/products/{pid}", json={"variants": [], "price": 27000}, headers=tma())
+            assert r.status == 200 and ctx.catalog.products[pid]["variants"] == [] and ctx.catalog.products[pid]["price"] == 27000
+
+            for bad in ([{"uz": "", "price": 1000}], [{"uz": "A", "price": 5}], "x", [{"uz": "A", "price": 1000}] * 13):
+                r = await client.patch(f"/api/admin/products/{pid}", json={"variants": bad}, headers=tma())
+                assert r.status == 400, bad
+        finally:
+            await close(client, ctx)
     run(go())

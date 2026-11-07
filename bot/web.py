@@ -68,8 +68,28 @@ async def api_bootstrap(request: web.Request) -> web.Response:
             "name": profile.get("first_name") or user.first_name or "",
             "phone": profile.get("phone") or "",
             "address": profile.get("last_address") or "",
+            "lat": profile.get("last_lat"),
+            "lon": profile.get("last_lon"),
+            "type": profile.get("pref_type") or "",
         },
     })
+
+
+async def api_request_location(request: web.Request) -> web.Response:
+    """Mini App'dan: bot chatga «📍 Lokatsiyani yuborish» tugmasini yuboradi, keyin mijoz Telegram'dan yuboradi."""
+    ctx = request.app[CTX_KEY]
+    user = _auth(request)
+    profile = await ctx.db.get_user(user.id) or {}
+    lang = norm_lang(profile.get("lang") or ("ru" if (user.language_code or "").startswith("ru") else "uz"))
+    from .handlers.user import ask_location  # aylanma importdan qochish
+    ctx.location_requests.add(user.id)
+    try:
+        await ask_location(ctx, user.id, lang)
+    except Exception:
+        ctx.location_requests.discard(user.id)
+        log.exception("Lokatsiya so'rovini yuborib bo'lmadi (user=%s)", user.id)
+        raise ApiError(409, "cannot_message") from None
+    return web.json_response({"ok": True})
 
 
 def _clean_str(value: Any, max_len: int) -> str:
@@ -123,10 +143,13 @@ async def api_order(request: web.Request) -> web.Response:
     if not PHONE_RE.match(phone) or not 9 <= sum(c.isdigit() for c in phone) <= 15:
         raise ApiError(400, "bad_phone")
     if order_type == "delivery":
-        if len(address) < 5:
-            raise ApiError(400, "bad_address")
         if (lat is None) != (lon is None):
             raise ApiError(400, "bad_location")
+        # Telegram lokatsiyasi yoki yozilgan manzil — kamida bittasi shart
+        if lat is None and len(address) < 5:
+            raise ApiError(400, "bad_address")
+        if not address:
+            address = f"📍 {lat:.5f}, {lon:.5f}"
     else:
         address, lat, lon = "", None, None
 
@@ -161,7 +184,11 @@ async def api_order(request: web.Request) -> web.Response:
     await ctx.db.set_user_field(user.id, "phone", phone)
     if not profile.get("lang"):
         await ctx.db.set_user_field(user.id, "lang", lang)
-    if address:
+    if lat is not None:
+        # Telegram'dan kelgan lokatsiya profilda allaqachon bor — manzilni podyezd/qavat bilan ustidan yozmaymiz
+        if (profile.get("last_lat"), profile.get("last_lon")) != (lat, lon):
+            await ctx.db.set_location(user.id, lat, lon, address)
+    elif address:
         await ctx.db.set_user_field(user.id, "last_address", address)
 
     # Telegram'ga yuborish fonda — mijoz javobni darhol oladi
@@ -206,6 +233,7 @@ def build_web_app(ctx: AppContext) -> web.Application:
     app.router.add_get("/health", health)
     app.router.add_get("/api/bootstrap", api_bootstrap)
     app.router.add_post("/api/order", api_order)
+    app.router.add_post("/api/request-location", api_request_location)
     app.router.add_static("/static/", WEBAPP_DIR, show_index=False)
     ctx.settings.upload_dir.mkdir(parents=True, exist_ok=True)
     app.router.add_static("/media/", ctx.settings.upload_dir, show_index=False)

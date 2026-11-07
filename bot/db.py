@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS products (
     available    INTEGER NOT NULL DEFAULT 1,
     visible      INTEGER NOT NULL DEFAULT 1,
     sort         INTEGER NOT NULL DEFAULT 0,
+    variants     TEXT,
     created_at   TEXT NOT NULL,
     updated_at   TEXT NOT NULL
 );
@@ -116,7 +117,7 @@ FIRST_ORDER_ID = 1001
 CATEGORY_FIELDS = ("name_uz", "name_ru", "icon", "sort", "visible")
 PRODUCT_FIELDS = (
     "category_id", "name_uz", "name_ru", "desc_uz", "desc_ru", "price", "promo_price", "promo_from",
-    "promo_to", "image", "badge", "available", "visible", "sort",
+    "promo_to", "image", "badge", "available", "visible", "sort", "variants",
 )
 BANNER_FIELDS = (
     "title_uz", "title_ru", "text_uz", "text_ru", "image", "link_type", "link_id",
@@ -159,6 +160,14 @@ class Database:
         cur = await self.conn.execute("PRAGMA table_info(admins)")
         if "role" not in {r[1] for r in await cur.fetchall()}:
             await self.conn.execute("ALTER TABLE admins ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'")
+        cur = await self.conn.execute("PRAGMA table_info(products)")
+        if "variants" not in {r[1] for r in await cur.fetchall()}:
+            await self.conn.execute("ALTER TABLE products ADD COLUMN variants TEXT")
+        cur = await self.conn.execute("PRAGMA table_info(users)")
+        user_cols = {r[1] for r in await cur.fetchall()}
+        for col, decl in (("last_lat", "REAL"), ("last_lon", "REAL"), ("pref_type", "TEXT")):
+            if col not in user_cols:
+                await self.conn.execute(f"ALTER TABLE users ADD COLUMN {col} {decl}")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -187,7 +196,7 @@ class Database:
         return await self._one("SELECT * FROM users WHERE id=?", (user_id,))
 
     async def set_user_field(self, user_id: int, field: str, value: Any) -> None:
-        if field not in ("lang", "phone", "last_address", "first_name"):
+        if field not in ("lang", "phone", "last_address", "first_name", "last_lat", "last_lon", "pref_type"):
             raise ValueError(field)
         await self.conn.execute(
             f"INSERT INTO users(id, {field}, created_at) VALUES (?, ?, ?) "
@@ -199,6 +208,15 @@ class Database:
     async def all_user_ids(self) -> list[int]:
         cur = await self.conn.execute("SELECT id FROM users")
         return [r[0] for r in await cur.fetchall()]
+
+    async def set_location(self, user_id: int, lat: float, lon: float, address: str) -> None:
+        await self.conn.execute(
+            "INSERT INTO users(id, last_lat, last_lon, last_address, pref_type, created_at) VALUES (?, ?, ?, ?, 'delivery', ?) "
+            "ON CONFLICT(id) DO UPDATE SET last_lat=excluded.last_lat, last_lon=excluded.last_lon, "
+            "last_address=excluded.last_address, pref_type='delivery'",
+            (user_id, lat, lon, address, _now()),
+        )
+        await self.conn.commit()
 
     async def all_users_lang(self) -> list[tuple[int, str | None]]:
         cur = await self.conn.execute("SELECT id, lang FROM users")
@@ -454,7 +472,11 @@ class Database:
 
 
 def _db_value(v: Any) -> Any:
-    return int(v) if isinstance(v, bool) else v
+    if isinstance(v, bool):
+        return int(v)
+    if isinstance(v, (list, dict)):
+        return json.dumps(v, ensure_ascii=False) if v else None
+    return v
 
 
 def _order_row(row: dict[str, Any]) -> dict[str, Any]:

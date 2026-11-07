@@ -12,7 +12,7 @@ from aiogram.methods import GetMe
 from aiogram.types import CallbackQuery, Chat, Contact, Message, Update, User
 
 from bot.catalog import Catalog
-from bot.config import DATA_DIR
+from tests.conftest import FIXTURES as DATA_DIR
 from bot.context import AppContext
 from bot.db import Database
 from bot.handlers import build_router
@@ -255,6 +255,63 @@ def test_cashier_bot_permissions(tmp_path):
             session.calls.clear()
             await feed(dp, bot, message=msg("/stats", chat_id=ADMIN_CHAT, uid=USER_ID))
             assert "Statistika" in session.calls[-1].text
+        finally:
+            await ctx.db.close()
+    asyncio.run(go())
+
+
+def test_location_flow(tmp_path, monkeypatch):
+    import bot.handlers.user as user_mod
+    from aiogram.types import Location
+
+    async def fake_geocode(lat, lon, lang="uz", contact=""):
+        return "Qo'qon, Navoiy ko'chasi, 12"
+
+    monkeypatch.setattr(user_mod, "reverse_geocode", fake_geocode)
+
+    async def go():
+        dp, bot, session, ctx = await setup(tmp_path)
+        try:
+            await ctx.db.upsert_user(USER_ID, "Ali", "ali")
+            await ctx.db.set_user_field(USER_ID, "lang", "uz")
+            await ctx.db.set_user_field(USER_ID, "phone", "+998901112233")
+
+            # "Buyurtma berish" -> lokatsiya so'raladi (Telegram'ning o'z tugmasi)
+            await feed(dp, bot, message=msg("🍔 Buyurtma berish"))
+            kb = session.calls[-1].reply_markup
+            assert kb.keyboard[0][0].request_location is True
+            assert [b.text for b in kb.keyboard[-1]] == ["🛍 Olib ketaman", "⬅️ Orqaga"]
+
+            # lokatsiya yuborildi -> manzil saqlanadi, menyu tugmasi keladi
+            session.calls.clear()
+            loc_msg = msg()
+            loc_msg = loc_msg.model_copy(update={"location": Location(latitude=40.5286, longitude=70.9425)})
+            await feed(dp, bot, message=loc_msg)
+            user = await ctx.db.get_user(USER_ID)
+            assert (user["last_lat"], user["last_lon"], user["pref_type"]) == (40.5286, 70.9425, "delivery")
+            import html
+            assert "Navoiy ko'chasi" in html.unescape(session.calls[0].text)
+            url = session.calls[-1].reply_markup.inline_keyboard[0][0].web_app.url
+            assert "type=delivery" in url and "to=checkout" not in url
+
+            # keyingi safar "Oldingi manzil" tugmasi bor
+            session.calls.clear()
+            await feed(dp, bot, message=msg("🍔 Buyurtma berish"))
+            assert session.calls[-1].reply_markup.keyboard[1][0].text == "🏠 Oldingi manzil"
+
+            # Mini App ichidan so'ralgan bo'lsa — "Buyurtmani davom ettirish" (to=checkout)
+            ctx.location_requests.add(USER_ID)
+            session.calls.clear()
+            await feed(dp, bot, message=msg("🏠 Oldingi manzil"))
+            last = session.calls[-1].reply_markup.inline_keyboard[0][0]
+            assert last.text == "🛒 Buyurtmani davom ettirish" and "to=checkout" in last.web_app.url
+            assert USER_ID not in ctx.location_requests
+
+            # olib ketish
+            session.calls.clear()
+            await feed(dp, bot, message=msg("🛍 Olib ketaman"))
+            assert (await ctx.db.get_user(USER_ID))["pref_type"] == "pickup"
+            assert "type=pickup" in session.calls[-1].reply_markup.inline_keyboard[0][0].web_app.url
         finally:
             await ctx.db.close()
     asyncio.run(go())

@@ -5,8 +5,7 @@ savatga soladi, manzil va lokatsiyani belgilaydi, buyurtma beradi. Buyurtma darh
 admin panelga tushadi. Restoran egasi menyu, narx, rasm, aksiya va sozlamalarni panelning o'zidan boshqaradi —
 dasturchi kerak emas.
 
-![Ayva Burgers Mini App](docs/preview.png)
-![Ayva Burgers admin panel](docs/admin-preview.png)
+![Ayva Burgers Mini App va admin panel](docs/preview.png)
 
 ## Imkoniyatlar
 
@@ -15,7 +14,11 @@ dasturchi kerak emas.
 - Mini App: aksiya bannerlari, «🔥 Aksiyalar» bo'limi, kategoriyalar, rasmli kartalar, chegirma narxlari
   (eski narx chizilgan), «Hit / Yangi / Achchiq» belgilari, savat
 - Bepul yetkazishgacha qolgan summa ko'rsatkichi, sous/ichimlik takliflari
-- Yetkazib berish yoki olib ketish, manzil + xaritada lokatsiya (GPS yoki qo'lda)
+- «🍔 Buyurtma berish» → bot Telegram'ning o'z tugmasi bilan lokatsiya so'raydi («📍 Lokatsiyani yuborish»,
+  «🏠 Oldingi manzil» yoki «🛍 Olib ketaman»); manzil OpenStreetMap orqali matnga aylantiriladi
+- Mini App'da ism, telefon va lokatsiya kartochka ko'rinishida (xarita bilan); raqam Telegram orqali
+  bir tugmada yuboriladi, lokatsiyani o'zgartirish ham bot chatidagi tugma orqali
+- Variantli mahsulotlar: pitsa (kichik/o'rta/katta), lavash (mini/oddiy/extra), hot-dog (klassik/cheese/…)
 - To'lov: naqd pul (Click va Payme «Tez orada»)
 - Ish vaqtidan tashqari yoki admin to'xtatganda buyurtma qabul qilinmaydi (menyuni ko'rish mumkin)
 - «📦 Buyurtmalarim», «ℹ️ Biz haqimizda», «📞 Aloqa», «⚙️ Sozlamalar»
@@ -151,11 +154,15 @@ pytest -q                 # testlar
 
 Hammasi admin paneldan o'zgartiriladi, serverni qayta ishga tushirish kerak emas — o'zgarish mijozlarda darhol ko'rinadi.
 
-- `data/menu.json` va `data/store.json` faqat **birinchi** ishga tushishda bazaga namuna sifatida yuklanadi.
+- `data/menu.json` va `data/store.json` faqat **birinchi** ishga tushishda bazaga yuklanadi. Menyu
+  t.me/ayva_burgers kanalidagi menyu jadvallari asosida tuzilgan — **narxlar 2023-yil yanvardagi**, ularni
+  paneldan yangilang.
+- Mahsulot suratlari `webapp/img/products/` da — kanal postlaridan kesib olingan; paneldan istalganini almashtirish mumkin.
   Keyin ular o'qilmaydi, menyu bazada saqlanadi.
 - Mahsulot rasmlari: telefondan yoki kompyuterdan yuklang (JPG/PNG/WebP, 12 MB gacha). Server ularni
   1200 px gacha kichraytirib, WebP'ga o'giradi. Rasm bo'lmasa kategoriyaning chizilgan rasmi chiqadi.
-- **Logo va ranglar**: logo — `webapp/img/logo.svg`; asosiy rang — `webapp/styles.css` boshidagi `--accent`.
+- **Logo va ranglar**: logolar — `webapp/img/logo-light.png` (qora fon uchun), `logo-dark.png`, `logo-badge.png`;
+  brend ranglari — `webapp/styles.css` boshidagi `--brand` (qizil) va `--head` (qora).
 
 ## 4. Click va Payme (keyingi bosqich)
 

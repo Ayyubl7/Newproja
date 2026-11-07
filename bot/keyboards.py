@@ -12,8 +12,9 @@ from aiogram.types import (
 from .texts import ADMIN_PANEL_BUTTON, t
 
 
-def webapp_url(base_url: str, lang: str) -> str:
-    return f"{base_url}?lang={lang}"
+def webapp_url(base_url: str, lang: str, **params: str) -> str:
+    query = "&".join(f"{k}={v}" for k, v in {"lang": lang, **params}.items() if v)
+    return f"{base_url}?{query}"
 
 
 def lang_keyboard() -> InlineKeyboardMarkup:
@@ -46,11 +47,24 @@ def main_keyboard(lang: str, admin: bool = False) -> ReplyKeyboardMarkup:
     )
 
 
-def open_menu_keyboard(lang: str, base_url: str) -> InlineKeyboardMarkup:
+def open_menu_keyboard(lang: str, base_url: str, order_type: str = "", checkout: bool = False) -> InlineKeyboardMarkup:
     # Inline web_app tugmasi — Mini App'ga initData uzatiladi (reply tugmada bunday emas).
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=t(lang, "btn_open_menu"), web_app=WebAppInfo(url=webapp_url(base_url, lang))),
-    ]])
+    text = t(lang, "btn_continue_order") if checkout else t(lang, "btn_open_menu")
+    url = webapp_url(base_url, lang, type=order_type, to="checkout" if checkout else "")
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))]])
+
+
+def location_keyboard(lang: str, has_saved: bool, delivery: bool = True, pickup: bool = True) -> ReplyKeyboardMarkup:
+    rows = []
+    if delivery:
+        rows.append([KeyboardButton(text=t(lang, "btn_send_location"), request_location=True)])
+        if has_saved:
+            rows.append([KeyboardButton(text=t(lang, "btn_prev_address"))])
+    last = [KeyboardButton(text=t(lang, "btn_back"))]
+    if pickup:
+        last.insert(0, KeyboardButton(text=t(lang, "btn_pickup_self")))
+    rows.append(last)
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True, one_time_keyboard=True)
 
 
 def settings_keyboard(lang: str) -> InlineKeyboardMarkup:

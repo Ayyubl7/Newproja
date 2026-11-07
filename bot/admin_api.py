@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import json
 import logging
 import math
 import re
@@ -30,6 +31,8 @@ from .broadcast import start_broadcast
 from .catalog import (
     BADGES,
     ICONS,
+    MAX_VARIANTS,
+    parse_variants,
     PAYMENT_METHODS,
     LIVE_PAYMENT_METHODS,
     _merge,
@@ -332,6 +335,8 @@ async def get_menu(request: web.Request, ctx: AppContext) -> web.Response:
     for r in await ctx.db.list_products():
         r = dict(r)
         r["available"], r["visible"] = bool(r["available"]), bool(r["visible"])
+        r["variants"] = [{"uz": v["name"]["uz"], "ru": v["name"]["ru"] if v["name"]["ru"] != v["name"]["uz"] else "",
+                          "price": v["price"]} for v in parse_variants(r.get("variants"))]
         r["promo_state"] = _promo_state(r, today)
         products.append(r)
     cats = [{**c, "visible": bool(c["visible"])} for c in await ctx.db.list_categories()]
@@ -382,11 +387,30 @@ async def delete_category(request: web.Request, ctx: AppContext) -> web.Response
     return ok()
 
 
+def v_variants(body: dict) -> list[dict[str, Any]]:
+    raw = body.get("variants")
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list) or len(raw) > MAX_VARIANTS:
+        raise _bad("variants")
+    out = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise _bad("variants")
+        out.append({"uz": v_str(item, "uz", 30, required=True), "ru": v_str(item, "ru", 30),
+                    "price": v_int(item, "price", 100, 100_000_000)})
+    return out
+
+
 def _parse_product(body: dict, partial: bool) -> dict[str, Any]:
     out: dict[str, Any] = {}
+    if "variants" in body:
+        out["variants"] = v_variants(body)
     if not partial or "name_uz" in body:
         out["name_uz"] = v_str(body, "name_uz", 80, required=True)
-    if not partial or "price" in body:
+    if out.get("variants"):
+        out["price"] = min(v["price"] for v in out["variants"])  # asosiy narx = eng arzon variant
+    elif not partial or "price" in body:
         out["price"] = v_int(body, "price", 100, 100_000_000)
     if not partial or "category_id" in body:
         out["category_id"] = v_str(body, "category_id", 40, required=True)
@@ -409,6 +433,11 @@ def _parse_product(body: dict, partial: bool) -> dict[str, Any]:
 
 
 async def _check_product(ctx: AppContext, merged: dict[str, Any]) -> None:
+    variants = merged.get("variants")
+    if isinstance(variants, str):
+        variants = json.loads(variants)
+    if variants:
+        merged["price"] = min(v["price"] for v in variants)
     if not await ctx.db.get_category(merged["category_id"]):
         raise _bad("category_id")
     if merged.get("promo_price") is not None and merged["promo_price"] >= merged["price"]:
@@ -436,7 +465,10 @@ async def update_product(request: web.Request, ctx: AppContext) -> web.Response:
     if not current:
         raise ApiError(404, "not_found")
     data = _parse_product(body, partial=True)
-    await _check_product(ctx, {**current, **data})
+    merged = {**current, **data}
+    await _check_product(ctx, merged)
+    if merged.get("variants") and "price" not in data:
+        data["price"] = merged["price"]
     await ctx.db.update_product(pid, data)
     if "image" in data and data["image"] != current["image"]:
         await _drop_image_if_unused(ctx, current["image"])
@@ -720,7 +752,8 @@ async def stats(request: web.Request, ctx: AppContext) -> web.Response:
     top: dict[str, dict[str, Any]] = {}
     for o in done:
         for it in o["items"]:
-            row = top.setdefault(it["id"], {"id": it["id"], "name": it["name"], "qty": 0, "revenue": 0})
+            key = f'{it["id"]}:{it.get("v", "")}'
+            row = top.setdefault(key, {"id": it["id"], "name": it["name"], "qty": 0, "revenue": 0})
             row["qty"] += it["qty"]
             row["revenue"] += it["price"] * it["qty"]
     revenue = sum(o["total"] for o in done)

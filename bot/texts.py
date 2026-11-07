@@ -72,6 +72,25 @@ TEXTS: dict[str, dict[str, str]] = {
         "notify_done": "✅ Buyurtma <b>#{id}</b> yakunlandi. Yoqimli ishtaha! Bizni tanlaganingiz uchun rahmat 💛",
         "notify_cancelled": "❌ Buyurtma <b>#{id}</b> bekor qilindi. Savollaringiz bo'lsa, qo'ng'iroq qiling: {phone}",
         "pcs": "ta",
+        # lokatsiya (Telegram orqali)
+        "ask_location": (
+            "📍 <b>Buyurtmani qayerga yetkazamiz?</b>\n\n"
+            "Pastdagi <b>«📍 Lokatsiyani yuborish»</b> tugmasini bosing.\n"
+            "Boshqa joyga kerak bo'lsa: 📎 → <b>Lokatsiya</b> → xaritadan nuqtani tanlang."
+        ),
+        "ask_location_prev": "\n\n🏠 Oldingi manzil: {address}",
+        "ask_location_pickup": "\nO'zingiz olib ketsangiz — <b>«🛍 Olib ketaman»</b>.",
+        "btn_send_location": "📍 Lokatsiyani yuborish",
+        "btn_prev_address": "🏠 Oldingi manzil",
+        "btn_pickup_self": "🛍 Olib ketaman",
+        "btn_back": "⬅️ Orqaga",
+        "location_saved": "✅ <b>Manzil qabul qilindi</b>\n📍 {address}",
+        "pickup_chosen": "🛍 <b>Olib ketish</b>\n📍 {address}\nBuyurtma tayyor bo'lganda shu yerda xabar beramiz.",
+        "choose_food": "Endi menyudan taom tanlang 👇",
+        "continue_order": "Buyurtmani davom ettirish uchun tugmani bosing 👇",
+        "btn_continue_order": "🛒 Buyurtmani davom ettirish",
+        "location_point": "Xaritadagi nuqta",
+        "home_menu": "Asosiy menyu 👇",
     },
     "ru": {
         "choose_lang": "🇺🇿 Tilni tanlang\n🇷🇺 Выберите язык",
@@ -139,6 +158,24 @@ TEXTS: dict[str, dict[str, str]] = {
         "notify_done": "✅ Заказ <b>#{id}</b> завершён. Приятного аппетита! Спасибо, что выбрали нас 💛",
         "notify_cancelled": "❌ Заказ <b>#{id}</b> отменён. Если есть вопросы, позвоните: {phone}",
         "pcs": "шт",
+        "ask_location": (
+            "📍 <b>Куда доставить заказ?</b>\n\n"
+            "Нажмите кнопку <b>«📍 Отправить локацию»</b> ниже.\n"
+            "Нужен другой адрес: 📎 → <b>Геопозиция</b> → выберите точку на карте."
+        ),
+        "ask_location_prev": "\n\n🏠 Предыдущий адрес: {address}",
+        "ask_location_pickup": "\nЗаберёте сами — <b>«🛍 Заберу сам»</b>.",
+        "btn_send_location": "📍 Отправить локацию",
+        "btn_prev_address": "🏠 Предыдущий адрес",
+        "btn_pickup_self": "🛍 Заберу сам",
+        "btn_back": "⬅️ Назад",
+        "location_saved": "✅ <b>Адрес принят</b>\n📍 {address}",
+        "pickup_chosen": "🛍 <b>Самовывоз</b>\n📍 {address}\nКогда заказ будет готов, сообщим здесь.",
+        "choose_food": "Теперь выберите блюда в меню 👇",
+        "continue_order": "Нажмите кнопку, чтобы продолжить заказ 👇",
+        "btn_continue_order": "🛒 Продолжить заказ",
+        "location_point": "Точка на карте",
+        "home_menu": "Главное меню 👇",
     },
 }
 
